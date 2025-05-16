@@ -33,17 +33,17 @@ jobs:
             libxrandr2 libxv1 xvfb
 
       - name: Install project dependencies
-        working-directory: ./repo/scripts
-        run: |
-          npm install --prefix . \
-            puppeteer-core@14.3.0 \
-            @sparticuz/chromium@14.3.0 \
-            tough-cookie@4.1.3 \
-            axios-cookiejar-support@1.6.0 \
-            firebase-admin@12.1.0 \
-            cheerio@1.0.0 \
-            axios@1.6.7
-          npm cache clean --force
+      working-directory: ./repo/scripts
+      run: |
+        npm install --prefix . \
+        puppeteer-core@21.7.0 \
+        @sparticuz/chromium@114.0.0 \
+        tough-cookie@4.1.3 \
+        axios-cookiejar-support@1.6.0 \
+        firebase-admin@12.1.0 \
+        cheerio@1.0.0 \
+        axios@1.6.7
+      npm cache clean --force
 
       - name: Run scraper
         working-directory: ./repo/scripts
