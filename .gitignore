@@ -1,0 +1,9 @@
+# Environment files
+/scripts/.env.local
+
+# Local scraper overrides
+/scripts/scraper_local.js
+
+# Service account credentials
+
+/scripts/serviceAccount.json
