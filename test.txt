@@ -8,3 +8,6 @@ node scraper_local.js
 
 
 git rm --cached .env.local scraper_local.js serviceAccount.json
+
+npm view @sparticuz/chromium@119.0.2
+npm view puppeteer-core@21.11.1
