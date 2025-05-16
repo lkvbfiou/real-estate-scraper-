@@ -1,7 +1,7 @@
 name: Real Estate Scraper
 on:
   schedule:
-    - cron: '0 * * * *'  # Hourly at :00
+    - cron: '0 */4 * * *'  # Every 4 hours
   workflow_dispatch:
 
 jobs:
@@ -13,14 +13,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          path: 'scripts'
+          path: 'repo'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
-          cache-dependency-path: 'scripts/package-lock.json'
+          cache: 'npm'
+          cache-dependency-path: 'repo/scripts/package-lock.json'
 
       - name: Install system dependencies
         run: |
@@ -33,19 +33,28 @@ jobs:
             libxrandr2 libxv1 xvfb
 
       - name: Install project dependencies
-        working-directory: ./scripts
-        run: npm ci --no-audit --no-fund
+        working-directory: ./repo/scripts
+        run: |
+          npm install --prefix . puppeteer-core@latest @sparticuz/chromium@latest \
+            tough-cookie@latest axios-cookiejar-support@latest firebase-admin@latest \
+            cheerio@latest axios@latest
+          npm cache clean --force
 
       - name: Run scraper
-        working-directory: ./scripts
+        working-directory: ./repo/scripts
         env:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
-          NODE_OPTIONS: "--max-old-space-size=2048"
+          NODE_OPTIONS: "--max-old-space-size=3072"
         run: |
-          Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
+          # Start virtual display and scraper with cleanup
+          Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset > /dev/null 2>&1 &
           export DISPLAY=:99
-          timeout --kill-after=3m 30m npm start || EXIT_CODE=$?
+          
+          # Run with timeout and proper cleanup
+          timeout --kill-after=5m 25m node scraper.js || EXIT_CODE=$?
+          
+          # Force cleanup
           pkill -f chromium || true
           pkill -f Xvfb || true
           exit ${EXIT_CODE:-0}
