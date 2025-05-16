@@ -52,30 +52,25 @@ jobs:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
-          # Cleanup previous processes
           pkill -f chromium || true
           pkill -f Xvfb || true
           
-          # Start Xvfb
           Xvfb :99 -screen 0 1280x1024x16 > /dev/null 2>&1 &
           export DISPLAY=:99
           
-          # Run scraper with debug
           DEBUG="puppeteer:*" timeout --kill-after=3m 20m node scraper.js || EXIT_CODE=$?
           
-          # Preserve debug artifacts
-          [ -f debug-page.png ] && mv debug-page.png ../../debug-page.png
+          [ -f debug-page.png ] && mv debug-page.png ../debug/
           
-          # Final cleanup
           pkill -f chromium || true
           pkill -f Xvfb || true
           exit ${EXIT_CODE:-0}
 
       - name: Upload debug artifacts
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: scraper-debug
           path: |
-            debug-page.png
+            repo/debug/debug-page.png
           retention-days: 1
