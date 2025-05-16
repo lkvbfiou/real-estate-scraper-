@@ -13,7 +13,7 @@ const CONTENT_THRESHOLD = 1024;
 const MAX_CONCURRENT = 3;
 const FIRESTORE_BATCH_SIZE = 400;
 
-// Enhanced logging setup
+// Enhanced logger
 const logger = {
   log: (...args) => console.log(`[${new Date().toISOString()}]`, ...args),
   error: (...args) => console.error(`[${new Date().toISOString()}]`, ...args)
@@ -76,30 +76,51 @@ async function processImages(listings, browser) {
   logger.log('Starting image processing...');
   const page = await browser.newPage();
   try {
-    logger.log('Navigating to search URL with Puppeteer...');
-    await page.goto(`${SEARCH_URL}?${new URLSearchParams(IDX_PARAMS)}`, {
-      waitUntil: 'networkidle2',
-      timeout: 120000
+    logger.log('Navigating to search URL...');
+    
+    // Configure timeouts
+    page.setDefaultNavigationTimeout(120000);
+    page.setDefaultTimeout(60000);
+
+    const navigationPromise = page.goto(`${SEARCH_URL}?${new URLSearchParams(IDX_PARAMS)}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 90000
     });
 
-    // Wait for critical elements and dynamic content
+    // Add timeout race condition
+    await Promise.race([
+      navigationPromise,
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error('Navigation timeout exceeded')), 
+        90000
+      ))
+    ]);
+
+    logger.log('Waiting for critical elements...');
     await page.waitForSelector('.ivResponsive', { timeout: 30000 });
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
+    // Debug screenshot in CI
+    if (process.env.CI) {
+      await page.screenshot({ path: 'debug-page.png' });
+      logger.log('Saved debug screenshot');
+    }
+
+    logger.log('Extracting image links...');
     const html = await page.content();
+    
     const rawLinks = Array.from(new Set(
       html.match(/https:\/\/matrix\.marismatrix\.com\/mediaserver\/GetMedia\.ashx\?[^"'\s]+/gi) || []
     )).map(link => decodeURIComponent(link));
 
-    logger.log(`Found ${rawLinks.length} raw image links before validation`);
+    logger.log(`Found ${rawLinks.length} raw image links`);
 
-    // Enhanced validation with concurrency control
+    // Image validation
     const validatedLinks = [];
     const seenUrls = new Set();
 
     for (let i = 0; i < rawLinks.length; i += MAX_CONCURRENT) {
       const chunk = rawLinks.slice(i, i + MAX_CONCURRENT);
-      logger.log(`Processing image chunk ${i / MAX_CONCURRENT + 1}/${Math.ceil(rawLinks.length / MAX_CONCURRENT)}`);
+      logger.log(`Processing image chunk ${Math.ceil(i/MAX_CONCURRENT) + 1}/${Math.ceil(rawLinks.length/MAX_CONCURRENT)}`);
       
       const results = await Promise.all(chunk.map(async url => {
         if (!url.includes('2&exk') || seenUrls.has(url)) return null;
@@ -108,19 +129,19 @@ async function processImages(listings, browser) {
       }));
 
       validatedLinks.push(...results.filter(Boolean));
-      await new Promise(resolve => setTimeout(resolve, 500)); // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    logger.log(`Validated ${validatedLinks.length} unique image URLs`);
+    logger.log(`Validated ${validatedLinks.length} images`);
 
-    // Map images to listings with error handling
+    // Map images to listings
     const imageMap = validatedLinks.reduce((acc, link) => {
       try {
         const keyMatch = link.match(/Key=([^&]+)/);
         if (keyMatch) (acc[keyMatch[1]] ||= []).push(link);
         return acc;
       } catch (error) {
-        logger.error(`Error processing image URL ${link}:`, error);
+        logger.error(`Error processing image URL: ${link}`, error);
         return acc;
       }
     }, {});
@@ -131,17 +152,21 @@ async function processImages(listings, browser) {
     }));
 
     const totalImages = listingsWithImages.reduce((sum, l) => sum + l.images.length, 0);
-    logger.log(`Mapped ${totalImages} images across ${listings.length} listings`);
+    logger.log(`Mapped ${totalImages} images to ${listings.length} listings`);
     
     return listingsWithImages;
+  } catch (error) {
+    logger.error('Image processing failed:', error);
+    throw error;
   } finally {
     await page.close();
+    logger.log('Closed browser page');
   }
 }
 
 async function validateImage(url) {
   try {
-    logger.log(`Validating image: ${url}`);
+    logger.log(`Validating: ${url}`);
     const response = await axios.head(url, {
       timeout: 5000,
       validateStatus: () => true,
@@ -157,13 +182,13 @@ async function validateImage(url) {
 
     return isValid ? url : null;
   } catch (error) {
-    logger.error(`Image validation failed for ${url}:`, error.message);
+    logger.error(`Validation failed for ${url}:`, error.message);
     return null;
   }
 }
 
 async function writeToFirestore(db, listings) {
-  logger.log(`Starting Firestore write for ${listings.length} listings...`);
+  logger.log(`Writing ${listings.length} listings to Firestore...`);
   try {
     const batchCount = Math.ceil(listings.length / FIRESTORE_BATCH_SIZE);
     
@@ -181,10 +206,10 @@ async function writeToFirestore(db, listings) {
 
       logger.log(`Committing batch ${Math.ceil(i/FIRESTORE_BATCH_SIZE) + 1}/${batchCount}`);
       await batch.commit();
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
     
-    logger.log('Firestore write completed successfully');
+    logger.log('Firestore write completed');
   } catch (error) {
     logger.error('Firestore write failed:', error);
     throw error;
@@ -207,8 +232,17 @@ async function main() {
 
     const listings = await scrapeListings(client);
     
+    logger.log('Launching browser...');
     const browser = await puppeteer.launch({
-      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--single-process'],
+      args: [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--single-process',
+        '--no-zygote',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ],
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
@@ -217,6 +251,7 @@ async function main() {
     
     const listingsWithImages = await processImages(listings, browser);
     await browser.close();
+    logger.log('Browser closed');
 
     await writeToFirestore(db, listingsWithImages);
     logger.log('Scraper completed successfully');
