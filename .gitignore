@@ -1,0 +1,27 @@
+# Node
+node_modules/
+package-lock.json
+
+# Environment
+.env
+*.env
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Chrome
+chromium/
+
+# Local development files
+scraper_local.js
+serviceAccount.json
+.env.local

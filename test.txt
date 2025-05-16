@@ -1,0 +1,3 @@
+https://realestatehomesadmin-default-rtdb.firebaseio.com
+
+echo 'FIREBASE_DB_URL="https://realestatehomesadmin-default-rtdb.firebaseio.com"' > .env.local

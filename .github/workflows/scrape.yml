@@ -1,7 +1,7 @@
 name: Real Estate Scraper
 on:
   schedule:
-    - cron: '0 * * * *'  # Hourly
+    - cron: '0 * * * *'  # Hourly at :00
   workflow_dispatch:
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           path: 'scripts'
@@ -22,7 +22,7 @@ jobs:
           cache: npm
           cache-dependency-path: 'scripts/package-lock.json'
 
-      - name: Install System Dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -32,18 +32,20 @@ jobs:
             libxcomposite1 libxdamage1 libxfixes3 \
             libxrandr2 libxv1 xvfb
 
-      - name: Install Project Dependencies
+      - name: Install project dependencies
         working-directory: ./scripts
-        run: |
-          npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
-      - name: Run Scraper
+      - name: Run scraper
         working-directory: ./scripts
         env:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          NODE_OPTIONS: "--max-old-space-size=2048"
         run: |
-          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-          timeout --kill-after=2m 27m npm start || EXIT_CODE=$?
+          Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
+          export DISPLAY=:99
+          timeout --kill-after=3m 30m npm start || EXIT_CODE=$?
           pkill -f chromium || true
+          pkill -f Xvfb || true
           exit ${EXIT_CODE:-0}
