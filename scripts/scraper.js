@@ -84,7 +84,7 @@ async function processImages(listings, browser) {
 
     // Wait for critical elements and dynamic content
     await page.waitForSelector('.ivResponsive', { timeout: 30000 });
-    await page.waitForTimeout(2000); // Additional buffer for images
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     const html = await page.content();
     const rawLinks = Array.from(new Set(

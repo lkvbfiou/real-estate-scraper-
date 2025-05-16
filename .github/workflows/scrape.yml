@@ -35,9 +35,14 @@ jobs:
       - name: Install project dependencies
         working-directory: ./repo/scripts
         run: |
-          npm install --prefix . puppeteer-core@latest @sparticuz/chromium@latest \
-            tough-cookie@latest axios-cookiejar-support@latest firebase-admin@latest \
-            cheerio@latest axios@latest
+          npm install --prefix . \
+            puppeteer-core@14.3.0 \
+            @sparticuz/chromium@14.3.0 \
+            tough-cookie@4.1.3 \
+            axios-cookiejar-support@1.6.0 \
+            firebase-admin@12.1.0 \
+            cheerio@1.0.0 \
+            axios@1.6.7
           npm cache clean --force
 
       - name: Run scraper
@@ -47,14 +52,11 @@ jobs:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           NODE_OPTIONS: "--max-old-space-size=3072"
         run: |
-          # Start virtual display and scraper with cleanup
           Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset > /dev/null 2>&1 &
           export DISPLAY=:99
           
-          # Run with timeout and proper cleanup
           timeout --kill-after=5m 25m node scraper.js || EXIT_CODE=$?
           
-          # Force cleanup
           pkill -f chromium || true
           pkill -f Xvfb || true
           exit ${EXIT_CODE:-0}
