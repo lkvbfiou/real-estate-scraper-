@@ -9,3 +9,5 @@
 /scripts/serviceAccount.json
 
 /tests/serviceAccount.json
+
+/tests/.env
