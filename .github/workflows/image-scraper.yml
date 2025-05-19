@@ -27,5 +27,15 @@ jobs:
         echo "FIREBASE_CREDENTIALS='${{ secrets.FIREBASE_CREDENTIALS }}'" > .env
         echo "FIREBASE_DB_URL='https://realestatehomesadmin-default-rtdb.firebaseio.com'" >> .env
 
+    - name: Verify credentials format
+      run: |
+        echo "Checking credentials format..."
+        CRED_LENGTH=${#FIREBASE_CREDENTIALS}
+        echo "Credentials length: $CRED_LENGTH chars"
+        echo "First 50 chars: ${FIREBASE_CREDENTIALS:0:50}"
+        echo "Last 50 chars: ${FIREBASE_CREDENTIALS: -50}"
+  env:
+    FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+
     - name: Run Scraper
       run: npm start

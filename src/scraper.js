@@ -24,9 +24,10 @@ async function initializeFirebase() {
 
     // Validate JSON structure
     const credentials = process.env.FIREBASE_CREDENTIALS;
-    if (!credentials.startsWith('{"type":"service_account"')) {
-      throw new Error('Invalid credentials format');
-    }
+      if (!credentials.startsWith('{"type":"service_account"')) {
+        console.log('Raw credentials start:', credentials.substring(0, 50));
+        throw new Error('Invalid credentials format');
+}
 
     const serviceAccount = JSON.parse(credentials);
     
