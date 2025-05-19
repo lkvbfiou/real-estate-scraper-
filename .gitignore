@@ -14,3 +14,5 @@ tests/serviceAccount.json
 
 serviceAccount.json
 *.json
+
+node_modules/

@@ -18,9 +18,12 @@ async function initializeFirebase() {
   try {
     logger.info('Initializing Firebase...');
     
-    if (!process.env.FIREBASE_CREDENTIALS || !process.env.FIREBASE_DB_URL) {
-      throw new Error('Missing Firebase environment variables');
+    if (!process.env.FIREBASE_CREDENTIALS) {
+      throw new Error('FIREBASE_CREDENTIALS environment variable missing');
     }
+
+    // Debug log (remove after testing)
+    logger.info('Credential string:', process.env.FIREBASE_CREDENTIALS.substring(0, 50) + '...');
 
     const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
     

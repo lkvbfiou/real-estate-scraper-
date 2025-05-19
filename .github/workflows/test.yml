@@ -1,0 +1,4 @@
+- name: Test credentials format
+  run: node -e "try{JSON.parse(process.env.FIREBASE_CREDENTIALS);console.log('✅ Valid JSON')}catch(e){console.error('❌ Invalid JSON:',e.message);process.exit(1)}"
+  env:
+    FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
