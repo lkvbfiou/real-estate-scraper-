@@ -14,6 +14,21 @@ const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?
 const DB_PATH = 'full_listings';
 const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
 
+require('dotenv').config();
+const admin = require('firebase-admin');
+const axios = require('axios');
+const cheerio = require('cheerio');
+const { URL } = require('url');
+
+const logger = {
+  info: (...args) => console.log(`[INFO] ${new Date().toISOString()}`, ...args),
+  error: (...args) => console.error(`[ERROR] ${new Date().toISOString()}`, ...args)
+};
+
+const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?count=1&idx=c2fe5d4&pv=&or=';
+const DB_PATH = 'full_listings';
+const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
+
 async function initializeFirebase() {
   try {
     logger.info('Initializing Firebase...');
@@ -22,21 +37,29 @@ async function initializeFirebase() {
       throw new Error('Missing Firebase environment variables');
     }
 
-    // Validate JSON structure
-    const credentials = process.env.FIREBASE_CREDENTIALS;
-      if (!credentials.startsWith('{"type":"service_account"')) {
-        console.log('Raw credentials start:', credentials.substring(0, 50));
-        throw new Error('Invalid credentials format');
-}
-
-    const serviceAccount = JSON.parse(credentials);
+    // Validate and parse credentials
+    const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
     
+    if (!credentials.private_key || !credentials.client_email) {
+      throw new Error('Invalid service account credentials');
+    }
+
+    // Initialize Firebase with certificate
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+      credential: admin.credential.cert({
+        projectId: credentials.project_id,
+        clientEmail: credentials.client_email,
+        privateKey: credentials.private_key.replace(/\\n/g, '\n')
+      }),
       databaseURL: process.env.FIREBASE_DB_URL
     });
 
-    return admin.database();
+    // Verify connection
+    const db = admin.database();
+    await db.ref('.info/connected').once('value');
+    
+    logger.info('Firebase initialized successfully');
+    return db;
   } catch (error) {
     logger.error('Firebase init failed:', error.stack);
     process.exit(1);
@@ -161,24 +184,16 @@ function deduplicateListings(listings) {
 }
 
 async function main() {
-  // Verify environment variables
-  if (!process.env.FIREBASE_CREDENTIALS || !process.env.FIREBASE_DB_URL) {
-    logger.error('Missing required environment variables');
-    process.exit(1);
-  }
-
-  const db = await initializeFirebase();
-  await clearDatabase(db);
-
   try {
-    // Scrape and process listings
+    const db = await initializeFirebase();
+    await clearDatabase(db);
+    
+    // Scrape and process data
     let listings = await scrapeListings();
     let fullListings = await processImages(listings);
-    
-    // Deduplicate and finalize order
     const finalListings = deduplicateListings(fullListings);
-    
-    // Prepare Firebase updates with proper ordering
+
+    // Prepare updates
     const updates = {};
     finalListings.forEach((listing, index) => {
       const reverseIndex = finalListings.length - 1 - index;
@@ -188,8 +203,9 @@ async function main() {
       };
     });
 
+    // Write to database
     await db.ref().update(updates);
-    logger.info(`Stored ${finalListings.length} listings in reverse order`);
+    logger.info(`Successfully stored ${finalListings.length} listings`);
     
     process.exit(0);
   } catch (error) {
@@ -198,5 +214,5 @@ async function main() {
   }
 }
 
-// Execute directly (no file check needed)
+// Start the process
 main();
