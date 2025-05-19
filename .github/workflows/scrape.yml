@@ -39,7 +39,7 @@ jobs:
         working-directory: repo/scripts
         run: |
           npm install --prefix . \
-            puppeteer-core@21.11.1 \
+            puppeteer-core@21.9.0 \
             @sparticuz/chromium@119.0.2 \  # Verified existing version
             tough-cookie@4.1.3 \
             axios-cookiejar-support@2.0.3 \
