@@ -1,0 +1,18 @@
+{
+    "name": "real-estate-scraper",
+    "version": "1.0.0",
+    "main": "src/scraper.js",
+    "scripts": {
+        "start": "node -r dotenv/config src/scraper.js"
+    },
+    "dependencies": {
+        "axios": "^1.6.2",
+        "cheerio": "^1.0.0",
+        "dotenv": "^16.3.1",
+        "firebase-admin": "^13.4.0",
+        "uuid": "^9.0.1"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    }
+}

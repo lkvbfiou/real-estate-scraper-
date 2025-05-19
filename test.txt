@@ -1,0 +1,31 @@
+https://realestatehomesadmin-default-rtdb.firebaseio.com
+
+echo 'FIREBASE_DB_URL="https://realestatehomesadmin-default-rtdb.firebaseio.com"' > .env.local
+
+NODE_OPTIONS="--max-old-space-size=4096" \
+FIREBASE_DB_URL="https://realestatehomesadmin-default-rtdb.firebaseio.com" \
+node scraper_local.js
+
+
+git rm --cached .env.local scraper_local.js serviceAccount.json
+
+npm view @sparticuz/chromium@119.0.2
+npm view puppeteer-core@21.11.1
+
+
+cd tests
+export FIREBASE_CREDENTIALS='{
+  "type": "service_account",
+  "project_id": "realestatehomesadmin",
+  "private_key_id": "536af2aec319d25db69e655be63458b1ed8c38b9",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC5ZhuoNdZCJZCr\ngRW8rAXBqFeve185OuraXXfppN72mvMJdS0Zt2Hurl+7nEnL8FqOFFeOh0NkUQka\nw2W+d0Q1TP6bkJWoskpFOv5E4zQDvn4OVTa1hW2zcgGe402ysKg+0eKp1QlMy1+s\nK5YjIgy6pX/3ZuOy61kCjajFnRGcPUbbwe/aFAAD0ZMW/4RIUAJxz0Ipp9JkKzTQ\nFRlPVlSAoOkfYNbZuC3mfZ3d8upHX0HTHwbFw4gvtLmi1s23UZoJY2B0M0HLgjW6\nuzpAFhMJ2XqeqFK7oIKqSuoYYY132CTJtv2o0BLLkfEH19VFMGnoKXiqrqLg8oWJ\n6ZC0dgapAgMBAAECggEAHVk/HpErMjxtGuEr1jqrDJ2AB/zxNYeQnvG15kwdqY8c\n0w30DkKb46NB71qNyhVp2Fz7AUqDThGP7ecpp42MxB1Ens60Ckjy/eOZVcFbvg39\nOXqe1vxgwcvV2tejuJpDf/JMvdLGDpyRMBmUQkqFFlTVnY3xlKSx6fgP0/yJyaAa\nE/ShkO3Ed3WnuTnvRkfk35cy9APNOxD5FJsDgYM+wqibepdDly4h2z5Al802p4gv\nOHIhk+xbIoS/0GcokM395o1wueB/iIcKQptKE5ybDILTfU1x0P0P78/mDEXSTYqX\nR9U1up6/nqtTruwoBjgQcUhpNReNLtX74p9kuQ+3iQKBgQD4NrhpT/lyzDOjnxlg\n2mWRkZslvTJUl+lcG/XZqxhE59GNXM4O2EbioVCC1z2T3gTjSGTx4Ihbj7djpqxU\nxhmm21GnQ4JCdnQis0hGvIDBwsNtyJuGsSXW94NArRoMi/smYpGQKBJIPH4UODyj\nnIIxROw57nMb6AWwcyZyYavLZQKBgQC/NvPyKXCl/Hpo81+LMtAYeYzR3DWyux1i\nXlJZgFIKqgMpfYlc6eVxSVf/DgRmcd7C9QvuU1+k0wWuMpOw8fHwehMsIo8VJSUa\nKCSzECH0KQvb5pJ2oIL2sQUIwAgoomffweEyiB65fDbU+F/vp2t+YB/bN6SBBzun\nb5aoBBZz9QKBgQCDyiIeII1064FblgUWjL8zDFmRLySDD+mis2HVAegv5do4sZbj\nAOiaOkaSQhB6634y42RdnPcpjmQz7/I+TLSgCIERS2HlQhmltwVgMYQ33N6A8uvJ\nF1PdEKxK8d4L3WMrXVimbvBOFHho6fcgc+AYoty+YaISph4nMuyt/LgHlQKBgDyY\nzKxEp7dikORrpC631qy68H6dO8M9ey1uWMiWWumYQVJHv11bnmPNa36f0ZMpqP+9\nqp9HersASP+Qda+QrSyZczP8a722vNBSQncguLHoxCJXKrk/WuGU7dR9DtjZxvNp\nPNXHv3zmuXW6lKSdOPqeudm+A3sEcMo6GdN7ICZ1AoGAM3or+Jv/ZccOuLIpgwef\n9SbAu2Pe5A83DzBNOe3Qy+pMd1wdtxe+btCy6fkULYBW8QzOHQ1ufQ5qgJz1O8LX\n2p/Z+lSz7bLdtWGSuO47sa+06oIz27shg3ehRhoJ86vQgNuGN+8fFv+qtHYa863F\nCAAC1+sAGj6ZlXDEDkUoGNk=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@realestatehomesadmin.iam.gserviceaccount.com",
+  "client_id": "101158405496645299846",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40realestatehomesadmin.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}'
+export FIREBASE_DB_URL='https://realestatehomesadmin-default-rtdb.firebaseio.com/'
+node simple-scraper.js
