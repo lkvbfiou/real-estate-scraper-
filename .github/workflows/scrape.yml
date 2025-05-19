@@ -1,7 +1,7 @@
 name: Real Estate Scraper
 on:
   schedule:
-    - cron: '0 */4 * * *'  # Every 4 hours
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -31,6 +31,8 @@ jobs:
             libatk-bridge2.0-0 libx11-xcb1 \
             libxcomposite1 libxdamage1 libxfixes3 \
             libxrandr2 libxv1 xvfb \
+            libpangocairo-1.0-0 libgtk-3-0 \
+            fonts-noto-color-emoji fonts-freefont-ttf \
             libgl1-mesa-glx
 
       - name: Install project dependencies
@@ -53,16 +55,16 @@ jobs:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           NODE_OPTIONS: "--max-old-space-size=6144"
         run: |
-          # Force kill existing processes
+          # Force cleanup
           pkill -9 -f chromium || true
           pkill -9 -f Xvfb || true
           
-          # Start Xvfb
+          # Start virtual display
           Xvfb :99 -screen 0 1280x1024x16 &
           export DISPLAY=:99
           
-          # Run scraper with debug
-          DEBUG="puppeteer:*" timeout --kill-after=5m 30m node scraper.js || EXIT_CODE=$?
+          # Run scraper with extended timeout
+          DEBUG="puppeteer:*" timeout --kill-after=7m 35m node scraper.js || EXIT_CODE=$?
           
           # Preserve debug artifacts
           mkdir -p ../debug

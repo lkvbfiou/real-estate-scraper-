@@ -76,7 +76,7 @@ async function processImages(listings, browser) {
   logger.log('Starting image processing...');
   const page = await browser.newPage();
   try {
-    // Configure timeouts and interception
+    // Optimize page loading
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
@@ -87,24 +87,25 @@ async function processImages(listings, browser) {
     });
 
     logger.log('Navigating to search URL...');
-    await page.setDefaultNavigationTimeout(180000);
+    await page.setDefaultNavigationTimeout(240000);
     
     const navigationPromise = page.goto(`${SEARCH_URL}?${new URLSearchParams(IDX_PARAMS)}`, {
       waitUntil: 'domcontentloaded',
-      timeout: 180000
+      timeout: 240000
     });
 
     await Promise.race([
       navigationPromise,
       new Promise((_, reject) => setTimeout(
-        () => reject(new Error('Navigation timeout after 180s')), 
-        180000
+        () => reject(new Error('Navigation timeout after 240s')), 
+        240000
       ))
     ]);
 
     logger.log('Waiting for critical elements...');
-    await page.waitForSelector('.ivResponsive', { timeout: 45000 });
+    await page.waitForSelector('.ivResponsive', { timeout: 60000 });
 
+    // Capture debug screenshot in CI
     if (process.env.CI) {
       await page.screenshot({ path: 'debug-page.png' });
       logger.log('Saved debug screenshot');
@@ -113,16 +114,22 @@ async function processImages(listings, browser) {
     logger.log('Extracting image links...');
     const html = await page.content();
     
+    // URL extraction and normalization
     const rawLinks = Array.from(new Set(
       html.match(/https:\/\/matrix\.marismatrix\.com\/mediaserver\/GetMedia\.ashx\?[^"'\s]+/gi) || []
-    )).map(link => decodeURIComponent(link));
+    )).map(link => 
+      decodeURIComponent(link)
+     .replace(/&amp;/g, '&')
+     .replace(/%3a/gi, ':')
+     .replace(/%2f/gi, '/')
+    );
 
     logger.log(`Found ${rawLinks.length} raw image links`);
 
-    // Image validation
+    // Parallel image validation
     const validatedLinks = [];
     const seenUrls = new Set();
-
+    
     for (let i = 0; i < rawLinks.length; i += MAX_CONCURRENT) {
       const chunk = rawLinks.slice(i, i + MAX_CONCURRENT);
       logger.log(`Processing image chunk ${Math.ceil(i/MAX_CONCURRENT) + 1}/${Math.ceil(rawLinks.length/MAX_CONCURRENT)}`);
@@ -134,7 +141,7 @@ async function processImages(listings, browser) {
       }));
 
       validatedLinks.push(...results.filter(Boolean));
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 500)); // Rate limiting
     }
 
     logger.log(`Validated ${validatedLinks.length} images`);
@@ -143,7 +150,11 @@ async function processImages(listings, browser) {
     const imageMap = validatedLinks.reduce((acc, link) => {
       try {
         const keyMatch = link.match(/Key=([^&]+)/);
-        if (keyMatch) (acc[keyMatch[1]] ||= []).push(link);
+        if (keyMatch) {
+          const listingId = keyMatch[1];
+          acc[listingId] = acc[listingId] || [];
+          acc[listingId].push(link);
+        }
         return acc;
       } catch (error) {
         logger.error(`Error processing image URL: ${link}`, error);
@@ -211,7 +222,7 @@ async function writeToFirestore(db, listings) {
 
       logger.log(`Committing batch ${Math.ceil(i/FIRESTORE_BATCH_SIZE) + 1}/${batchCount}`);
       await batch.commit();
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limiting
     }
     
     logger.log('Firestore write completed');
@@ -246,20 +257,20 @@ async function main() {
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
-        '--single-process',
         '--disable-gpu',
+        '--single-process',
         '--use-gl=swiftshader',
         '--window-size=1280,1024'
       ],
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
+      headless: "new",
       ignoreHTTPSErrors: true,
-      timeout: 180000,
-      protocolTimeout: 180000
+      timeout: 240000,
+      protocolTimeout: 240000,
+      dumpio: true
     });
 
-    // Browser connectivity check
+    // Browser health check
     logger.log(`Browser version: ${await browser.version()}`);
     const testPage = await browser.newPage();
     await testPage.goto('about:blank', { timeout: 15000 });
