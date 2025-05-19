@@ -16,3 +16,5 @@ serviceAccount.json
 *.json
 
 node_modules/
+
+.env
