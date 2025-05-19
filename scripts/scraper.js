@@ -76,30 +76,35 @@ async function processImages(listings, browser) {
   logger.log('Starting image processing...');
   const page = await browser.newPage();
   try {
-    logger.log('Navigating to search URL...');
-    
-    // Configure timeouts
-    page.setDefaultNavigationTimeout(120000);
-    page.setDefaultTimeout(60000);
-
-    const navigationPromise = page.goto(`${SEARCH_URL}?${new URLSearchParams(IDX_PARAMS)}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 90000
+    // Configure timeouts and interception
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+        req.abort();
+      } else {
+        req.continue();
+      }
     });
 
-    // Add timeout race condition
+    logger.log('Navigating to search URL...');
+    await page.setDefaultNavigationTimeout(180000);
+    
+    const navigationPromise = page.goto(`${SEARCH_URL}?${new URLSearchParams(IDX_PARAMS)}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 180000
+    });
+
     await Promise.race([
       navigationPromise,
       new Promise((_, reject) => setTimeout(
-        () => reject(new Error('Navigation timeout exceeded')), 
-        90000
+        () => reject(new Error('Navigation timeout after 180s')), 
+        180000
       ))
     ]);
 
     logger.log('Waiting for critical elements...');
-    await page.waitForSelector('.ivResponsive', { timeout: 30000 });
+    await page.waitForSelector('.ivResponsive', { timeout: 45000 });
 
-    // Debug screenshot in CI
     if (process.env.CI) {
       await page.screenshot({ path: 'debug-page.png' });
       logger.log('Saved debug screenshot');
@@ -171,7 +176,7 @@ async function validateImage(url) {
       timeout: 5000,
       validateStatus: () => true,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8'
       }
     });
@@ -206,7 +211,7 @@ async function writeToFirestore(db, listings) {
 
       logger.log(`Committing batch ${Math.ceil(i/FIRESTORE_BATCH_SIZE) + 1}/${batchCount}`);
       await batch.commit();
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
     logger.log('Firestore write completed');
@@ -224,7 +229,7 @@ async function main() {
       jar,
       timeout: 20000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
         'Referer': SEARCH_URL
       }
@@ -238,20 +243,31 @@ async function main() {
         ...chromium.args,
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--single-process',
-        '--no-zygote',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+        '--use-gl=swiftshader',
+        '--window-size=1280,1024'
       ],
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
-      timeout: 120000
+      timeout: 180000,
+      protocolTimeout: 180000
     });
+
+    // Browser connectivity check
+    logger.log(`Browser version: ${await browser.version()}`);
+    const testPage = await browser.newPage();
+    await testPage.goto('about:blank', { timeout: 15000 });
+    await testPage.close();
     
     const listingsWithImages = await processImages(listings, browser);
     await browser.close();
-    logger.log('Browser closed');
+    logger.log('Browser closed successfully');
 
     await writeToFirestore(db, listingsWithImages);
     logger.log('Scraper completed successfully');

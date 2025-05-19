@@ -7,7 +7,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -30,7 +30,8 @@ jobs:
             libdrm2 libxkbcommon0 libatk1.0-0 \
             libatk-bridge2.0-0 libx11-xcb1 \
             libxcomposite1 libxdamage1 libxfixes3 \
-            libxrandr2 libxv1 xvfb
+            libxrandr2 libxv1 xvfb \
+            libgl1-mesa-glx
 
       - name: Install project dependencies
         working-directory: repo/scripts
@@ -50,20 +51,26 @@ jobs:
         env:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_OPTIONS: "--max-old-space-size=6144"
         run: |
-          pkill -f chromium || true
-          pkill -f Xvfb || true
+          # Force kill existing processes
+          pkill -9 -f chromium || true
+          pkill -9 -f Xvfb || true
           
-          Xvfb :99 -screen 0 1280x1024x16 > /dev/null 2>&1 &
+          # Start Xvfb
+          Xvfb :99 -screen 0 1280x1024x16 &
           export DISPLAY=:99
           
-          DEBUG="puppeteer:*" timeout --kill-after=3m 20m node scraper.js || EXIT_CODE=$?
+          # Run scraper with debug
+          DEBUG="puppeteer:*" timeout --kill-after=5m 30m node scraper.js || EXIT_CODE=$?
           
+          # Preserve debug artifacts
+          mkdir -p ../debug
           [ -f debug-page.png ] && mv debug-page.png ../debug/
           
-          pkill -f chromium || true
-          pkill -f Xvfb || true
+          # Final cleanup
+          pkill -9 -f chromium || true
+          pkill -9 -f Xvfb || true
           exit ${EXIT_CODE:-0}
 
       - name: Upload debug artifacts
@@ -71,6 +78,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: scraper-debug
-          path: |
-            repo/debug/debug-page.png
+          path: repo/debug/debug-page.png
           retention-days: 1
