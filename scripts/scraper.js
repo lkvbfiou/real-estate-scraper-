@@ -76,7 +76,7 @@ async function processImages(listings, browser) {
   logger.log('Starting image processing...');
   const page = await browser.newPage();
   try {
-    // Optimize page loading
+    // Configure network interception
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
@@ -94,6 +94,10 @@ async function processImages(listings, browser) {
       timeout: 240000
     });
 
+    // Protocol debugging
+    const client = await page.target().createCDPSession();
+    client.on('*', message => logger.log(`CDP Event: ${message.method}`));
+
     await Promise.race([
       navigationPromise,
       new Promise((_, reject) => setTimeout(
@@ -105,7 +109,7 @@ async function processImages(listings, browser) {
     logger.log('Waiting for critical elements...');
     await page.waitForSelector('.ivResponsive', { timeout: 60000 });
 
-    // Capture debug screenshot in CI
+    // Debug screenshot in CI
     if (process.env.CI) {
       await page.screenshot({ path: 'debug-page.png' });
       logger.log('Saved debug screenshot');
@@ -114,22 +118,16 @@ async function processImages(listings, browser) {
     logger.log('Extracting image links...');
     const html = await page.content();
     
-    // URL extraction and normalization
     const rawLinks = Array.from(new Set(
       html.match(/https:\/\/matrix\.marismatrix\.com\/mediaserver\/GetMedia\.ashx\?[^"'\s]+/gi) || []
-    )).map(link => 
-      decodeURIComponent(link)
-     .replace(/&amp;/g, '&')
-     .replace(/%3a/gi, ':')
-     .replace(/%2f/gi, '/')
-    );
+    )).map(link => decodeURIComponent(link));
 
     logger.log(`Found ${rawLinks.length} raw image links`);
 
-    // Parallel image validation
+    // Validate images
     const validatedLinks = [];
     const seenUrls = new Set();
-    
+
     for (let i = 0; i < rawLinks.length; i += MAX_CONCURRENT) {
       const chunk = rawLinks.slice(i, i + MAX_CONCURRENT);
       logger.log(`Processing image chunk ${Math.ceil(i/MAX_CONCURRENT) + 1}/${Math.ceil(rawLinks.length/MAX_CONCURRENT)}`);
@@ -141,42 +139,27 @@ async function processImages(listings, browser) {
       }));
 
       validatedLinks.push(...results.filter(Boolean));
-      await new Promise(resolve => setTimeout(resolve, 500)); // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     logger.log(`Validated ${validatedLinks.length} images`);
 
     // Map images to listings
     const imageMap = validatedLinks.reduce((acc, link) => {
-      try {
-        const keyMatch = link.match(/Key=([^&]+)/);
-        if (keyMatch) {
-          const listingId = keyMatch[1];
-          acc[listingId] = acc[listingId] || [];
-          acc[listingId].push(link);
-        }
-        return acc;
-      } catch (error) {
-        logger.error(`Error processing image URL: ${link}`, error);
-        return acc;
+      const keyMatch = link.match(/Key=([^&]+)/);
+      if (keyMatch) {
+        acc[keyMatch[1]] = acc[keyMatch[1]] || [];
+        acc[keyMatch[1]].push(link);
       }
+      return acc;
     }, {});
 
-    const listingsWithImages = listings.map(listing => ({
+    return listings.map(listing => ({
       ...listing,
       images: imageMap[listing.listingId] || []
     }));
-
-    const totalImages = listingsWithImages.reduce((sum, l) => sum + l.images.length, 0);
-    logger.log(`Mapped ${totalImages} images to ${listings.length} listings`);
-    
-    return listingsWithImages;
-  } catch (error) {
-    logger.error('Image processing failed:', error);
-    throw error;
   } finally {
     await page.close();
-    logger.log('Closed browser page');
   }
 }
 
@@ -198,34 +181,27 @@ async function validateImage(url) {
 
     return isValid ? url : null;
   } catch (error) {
-    logger.error(`Validation failed for ${url}:`, error.message);
+    logger.error(`Validation failed for ${url}: ${error.message}`);
     return null;
   }
 }
 
 async function writeToFirestore(db, listings) {
-  logger.log(`Writing ${listings.length} listings to Firestore...`);
+  logger.log(`Writing ${listings.length} listings...`);
   try {
-    const batchCount = Math.ceil(listings.length / FIRESTORE_BATCH_SIZE);
-    
     for (let i = 0; i < listings.length; i += FIRESTORE_BATCH_SIZE) {
       const batch = db.batch();
       const chunk = listings.slice(i, i + FIRESTORE_BATCH_SIZE);
       
       chunk.forEach(listing => {
         const docRef = db.collection('listings').doc(listing.listingId);
-        batch.set(docRef, listing, { 
-          merge: true,
-          mergeFields: ['address', 'price', 'beds', 'baths', 'images', 'lastUpdated']
-        });
+        batch.set(docRef, listing, { merge: true });
       });
 
-      logger.log(`Committing batch ${Math.ceil(i/FIRESTORE_BATCH_SIZE) + 1}/${batchCount}`);
+      logger.log(`Committing batch ${Math.ceil(i/FIRESTORE_BATCH_SIZE) + 1}`);
       await batch.commit();
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
-    
-    logger.log('Firestore write completed');
   } catch (error) {
     logger.error('Firestore write failed:', error);
     throw error;
@@ -241,8 +217,7 @@ async function main() {
       timeout: 20000,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': SEARCH_URL
+        'Accept-Language': 'en-US,en;q=0.9'
       }
     }));
 
@@ -257,16 +232,16 @@ async function main() {
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--disable-gpu',
         '--single-process',
+        '--disable-gpu',
         '--use-gl=swiftshader',
         '--window-size=1280,1024'
       ],
       executablePath: await chromium.executablePath(),
       headless: "new",
       ignoreHTTPSErrors: true,
-      timeout: 240000,
-      protocolTimeout: 240000,
+      timeout: 300000,
+      protocolTimeout: 300000,
       dumpio: true
     });
 
@@ -278,7 +253,6 @@ async function main() {
     
     const listingsWithImages = await processImages(listings, browser);
     await browser.close();
-    logger.log('Browser closed successfully');
 
     await writeToFirestore(db, listingsWithImages);
     logger.log('Scraper completed successfully');
