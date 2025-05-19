@@ -11,3 +11,5 @@
 /tests/serviceAccount.json
 
 /tests/.env
+
+tests/.env:2
