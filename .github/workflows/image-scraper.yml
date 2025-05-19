@@ -13,13 +13,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Sync server time
+    - name: Configure time synchronization
       run: |
+        # Install NTP client
         sudo apt-get update
-        sudo apt-get install -y chrony
-        sudo systemctl start chrony
-        sudo chronyc -a 'burst 4/4'
-        sudo chronyc -a makestep
+        sudo apt-get install -y systemd-timesyncd
+        
+        # Configure cloud-friendly time servers
+        echo -e "[Time]\nNTP=time.google.com time.cloudflare.com" | sudo tee /etc/systemd/timesyncd.conf
+        
+        # Force immediate time sync
+        sudo timedatectl set-ntp true
+        sudo systemctl restart systemd-timesyncd
+        sudo systemctl status systemd-timesyncd
+        date
 
     - name: Setup Node.js
       uses: actions/setup-node@v3
