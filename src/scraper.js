@@ -16,11 +16,19 @@ const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
 
 async function initializeFirebase() {
   try {
-    const serviceAccount = require('./serviceAccount.json');
+    logger.info('Initializing Firebase...');
+    
+    if (!process.env.FIREBASE_CREDENTIALS || !process.env.FIREBASE_DB_URL) {
+      throw new Error('Missing Firebase environment variables');
+    }
+
+    const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+    
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       databaseURL: process.env.FIREBASE_DB_URL
     });
+
     return admin.database();
   } catch (error) {
     logger.error('Firebase init failed:', error.stack);
@@ -146,6 +154,12 @@ function deduplicateListings(listings) {
 }
 
 async function main() {
+  // Verify environment variables
+  if (!process.env.FIREBASE_CREDENTIALS || !process.env.FIREBASE_DB_URL) {
+    logger.error('Missing required environment variables');
+    process.exit(1);
+  }
+
   const db = await initializeFirebase();
   await clearDatabase(db);
 
@@ -157,13 +171,13 @@ async function main() {
     // Deduplicate and finalize order
     const finalListings = deduplicateListings(fullListings);
     
-    // Prepare Firebase updates with PROPER reverse ordering
+    // Prepare Firebase updates with proper ordering
     const updates = {};
     finalListings.forEach((listing, index) => {
       const reverseIndex = finalListings.length - 1 - index;
       updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
         ...listing,
-        position: reverseIndex // Add reverse position index
+        position: reverseIndex
       };
     });
 
@@ -177,10 +191,5 @@ async function main() {
   }
 }
 
-// Execute
-if (!require('./serviceAccount.json')) {
-  logger.error('Missing service account file');
-  process.exit(1);
-}
-
+// Execute directly (no file check needed)
 main();
