@@ -1,20 +1,6 @@
-# Environment files
-/scripts/.env.local
-
-# Local scraper overrides
-/scripts/scraper_local.js
-
-# Service account credentials
-
-/scripts/serviceAccount.json
-
-tests/node_modules/
-tests/.env
-tests/serviceAccount.json
-
-serviceAccount.json
-*.json
-
+# Ignore these
 node_modules/
-
 .env
+*.log
+.DS_Store
+serviceAccount.json
