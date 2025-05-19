@@ -7,3 +7,5 @@
 # Service account credentials
 
 /scripts/serviceAccount.json
+
+/tests/serviceAccount.json
