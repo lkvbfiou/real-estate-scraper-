@@ -14,20 +14,6 @@ const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?
 const DB_PATH = 'full_listings';
 const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
 
-require('dotenv').config();
-const admin = require('firebase-admin');
-const axios = require('axios');
-const cheerio = require('cheerio');
-const { URL } = require('url');
-
-const logger = {
-  info: (...args) => console.log(`[INFO] ${new Date().toISOString()}`, ...args),
-  error: (...args) => console.error(`[ERROR] ${new Date().toISOString()}`, ...args)
-};
-
-const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?count=1&idx=c2fe5d4&pv=&or=';
-const DB_PATH = 'full_listings';
-const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
 
 async function initializeFirebase() {
   try {
