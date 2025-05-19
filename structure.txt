@@ -1,24 +1,13 @@
-/real-estate-scraper
- .github
-  /workflows
-    image-scraper.yml (for current scraper)
-    scrape.yml (for older scraper)
-  /node_modules
-   -node stuff
-  /scripts (old scrpaer content)
-    /node_modules
-    .env.local
-    /package-lock.json
-    /package.json
-    /scraper_local.json (in .gitignore)
-    /serviceAccount.jspon (in .gitignore)
-  /tests (current scraper)
-    /node_modules
-    /package-lock.json
-    /package.json
-    /scrapetest.js (working scaraper code)
-    serviceAccount.json (in .gitignore)
-  .gitignore
-  /package-lock.json
-  /package.json
-  structure.txt
+{
+  "type": "service_account",
+  "project_id": "realestatehomesadmin",
+  "private_key_id": "1cd3469b12ffccad6d34f1056fc05833ae997380",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC+QVbLbzjkj1lg\nId//wriR/lqie8rJ1GdJHVcwFGFmOa5VAcdA3sHuOPEPSbcc9Rc9RzjZQFomRnPZ\nQuErJDMimwSs8p2YAGf3MQremIrkDU0++xzmrtLEvOTd2lWsdPKFGnEyI82khodW\n78Q7BhJby5Z/GIZKKrlRi2ZgfK/I+yWLWXsHtaqfFf/a6QdFGMWSCXOQTvtvIYQP\nOSjqMDNGeFzv4sT2wasDEuwbfDRraNqhllEjFKJPrZnqSJD8YcEjDeaxcbJsKuxr\nD4jNabyESr7XV6dqozkS5rIQju2f7cPO7YM5WTWdDCxqDD9kTfJSC21Ah3GJuHdF\n+DUdt2lPAgMBAAECggEASqI9Fy75ZYfqarC/O4i6eOML0QO46HX/UopFAqJsFvr3\nrXc2H/eCoh4KSpIDWEO5Kxu+bFM3Sh6HIap/xDm+KYwgSGwgcFlwb2L4vZufmJiz\nPcqqasAYBH+JVJJq221BGf/meeHbsPfpLax/ERxvpTz3O8J2I7Ag5KFHtwASwUc+\n9KnSrk/cLrJhnv+Pz7yl04nEoSl9GzLZGyVDElQoh1odk+i+ooGdrN4Fus8Toe4z\nlRJEBz9Qq1EtEyLaQwa1v4bn6hcSE5+Eje0IPtaYao7+TSNJ/FCNFzTEvWIL/5kV\ndXMMj+CTz5+G1D18b8lvAilKGilwN5HJPA84xG+ywQKBgQDn9uTBkIqEBJpBMjSV\ntA30CKngeSY65+22PdSy0rKWuWQqNw43HozKwVKvgquTVgH5rszXlkR61ijJARbp\ngxenK6WOhAIWIJwLAxKJGmFTWoR9l0UcGQxuYO+CFCSVXdlaH8MEnTHNCIDd56Fh\nSXePxJnDel+VnIYbMb1lbd40IQKBgQDR+BBl8JYPhrEneAzZXyFTuG/fnYahMdYX\nBrtMpHAwqlPyiPiJEoaWFnprAtDIvqIKqwOdwsAA+OhwHrJm63vIO2lYhB33a5Nr\nXUcr2kcAco94NHnVTDTidNjjEmyAc1bUWELNC/dqfXgS9JF59+1os0zB9240rbeL\naLcnUTTvbwKBgQDfxxc4hTCb27TUYJLKOUGcwx7fJwDyovx4a33eZdVUAtXWw/Y6\nxoYctBQIrY7IPJj7Pt7uvFCkECaYgyyPaaBP7ZNxwXgh0KO5G+Wtzn1F5HUck+pg\nCOotMebdHoGMd1VP1IRW1y9MFX/8k5DkQfPOBmQwaMX9l1rosTt9tlg/AQKBgH/x\nBhz3spiXXE9OiZXSr74R/qlllWmXsnqpcWvML0iYITsCV18+2J+P5txaBNqtvpN9\njWCOEO0GvqvDKLYp+20RNqnnJ1NiS5v6ZKnGAcm2BNIcN7jPDNKInLgQu+ixX1FY\nzqufBQ3wkkAKorKNbi6EQttWZ+LVj6f1ENV2WCklAoGAQ7eU9/xT23qH3vxn2QYF\nKCYlIcGezUNdCqbawl2O+YlwZDRa7G7S/Vb+UUj70mey0uQcCz3d7eA4RszOHhp/\nP8n5xIpJJOQr05lVHo/6YzL+CYfjdzcYEI/12SK6gXnMwW/tpK0eTs2z+LYHWty+\ne8yvFpq/7jfvwG4aDqFAZP4=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@realestatehomesadmin.iam.gserviceaccount.com",
+  "client_id": "101158405496645299846",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40realestatehomesadmin.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

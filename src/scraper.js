@@ -1,9 +1,10 @@
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
 const admin = require('firebase-admin');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { URL } = require('url');
 const path = require('path');
+const serviceAccount = require('../config/firebase-cfg.json');
 
 // Logger configuration
 const logger = {
@@ -15,54 +16,39 @@ const logger = {
 const CONFIG_PATH = path.join(__dirname, '..', 'config', 'firebase-cfg.json');
 const DB_URL = 'https://realestatehomesadmin-default-rtdb.firebaseio.com';
 
+const serviceAccount = require('../config/firebase-cfg.json');
+
 async function initializeFirebase() {
   try {
-    logger.info('Initializing Firebase connection...');
+    console.log('Initializing Firebase with key:', serviceAccount.private_key_id);
     
-    // Load configuration
-    const serviceAccount = require(CONFIG_PATH);
-    
-    // Validate configuration
-    if (!serviceAccount.project_id || 
-        !serviceAccount.private_key || 
-        !serviceAccount.client_email) {
-      throw new Error('Invalid Firebase configuration - missing required fields');
+    // Verify key format
+    if (!serviceAccount.private_key.includes('BEGIN PRIVATE KEY')) {
+      throw new Error('Invalid private key format');
     }
 
-    // Fix newline formatting in private key
-    const formattedKey = serviceAccount.private_key.replace(/\\n/g, '\n');
-
-    // Initialize Firebase Admin SDK
+    // Initialize with proper formatting
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: serviceAccount.project_id,
         clientEmail: serviceAccount.client_email,
-        privateKey: formattedKey
+        privateKey: serviceAccount.private_key.replace(/\\n/g, '\n')
       }),
-      databaseURL: DB_URL
+      databaseURL: 'https://realestatehomesadmin-default-rtdb.firebaseio.com'
     });
 
-    // Test database connection
+    // Test connection
     const db = admin.database();
-    const testRef = db.ref('connection-test');
-    await testRef.set({
+    await db.ref('connection-test').set({
       timestamp: Date.now(),
-      status: 'Connection test successful'
+      status: 'OK'
     });
-
-    logger.info('Firebase initialized successfully');
+    
+    console.log('Firebase initialized successfully');
     return db;
 
   } catch (error) {
-    logger.error('Firebase initialization failed:', error.message);
-    
-    // Specific error handling
-    if (error.code === 'MODULE_NOT_FOUND') {
-      logger.error('Missing firebase-cfg.json in config directory');
-    } else if (error.code === 'app/invalid-credential') {
-      logger.error('Credential validation failed - verify service account key');
-    }
-    
+    console.error('FATAL FIREBASE ERROR:', error);
     process.exit(1);
   }
 }

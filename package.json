@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "main": "src/scraper.js",
   "scripts": {
-    "start": "node -r dotenv/config src/scraper.js"
+    "start": "node src/scraper.js"
   },
   "dependencies": {
-    "axios": "^1.6.2",
+    "axios": "^1.9.0",
     "cheerio": "^1.0.0",
-    "dotenv": "^16.3.1",
-    "firebase-admin": "^11.11.0"
+    "dotenv": "^16.5.0",
+    "firebase-admin": "^11.11.1"
   },
   "engines": {
     "node": ">=20.0.0"
