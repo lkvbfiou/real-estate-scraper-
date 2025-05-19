@@ -18,14 +18,17 @@ async function initializeFirebase() {
   try {
     logger.info('Initializing Firebase...');
     
-    if (!process.env.FIREBASE_CREDENTIALS) {
-      throw new Error('FIREBASE_CREDENTIALS environment variable missing');
+    if (!process.env.FIREBASE_CREDENTIALS || !process.env.FIREBASE_DB_URL) {
+      throw new Error('Missing Firebase environment variables');
     }
 
-    // Debug log (remove after testing)
-    logger.info('Credential string:', process.env.FIREBASE_CREDENTIALS.substring(0, 50) + '...');
+    // Validate JSON structure
+    const credentials = process.env.FIREBASE_CREDENTIALS;
+    if (!credentials.startsWith('{"type":"service_account"')) {
+      throw new Error('Invalid credentials format');
+    }
 
-    const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+    const serviceAccount = JSON.parse(credentials);
     
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),

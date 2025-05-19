@@ -2,7 +2,7 @@ name: Real Estate Scraper
 
 on:
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: '0 */4 * * *'  # Every 4 hours
   workflow_dispatch:
 
 jobs:
@@ -22,10 +22,10 @@ jobs:
     - name: Install dependencies
       run: npm ci --no-audit --prefer-offline
 
-    - name: Create .env file
+    - name: Create environment file
       run: |
-        printf "FIREBASE_CREDENTIALS='%s'\n" "${{ secrets.FIREBASE_CREDENTIALS }}" > .env
-        echo "FIREBASE_DB_URL='${{ secrets.FIREBASE_DB_URL }}'" >> .env
+        echo "FIREBASE_CREDENTIALS='${{ secrets.FIREBASE_CREDENTIALS }}'" > .env
+        echo "FIREBASE_DB_URL='https://realestatehomesadmin-default-rtdb.firebaseio.com'" >> .env
 
     - name: Run Scraper
       run: npm start
