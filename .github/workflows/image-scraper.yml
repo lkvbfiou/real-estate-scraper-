@@ -8,34 +8,36 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    
+
+    # Move env here, not in the middle of the steps list
+    env:
+      FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 20.x
-        cache: 'npm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci --no-audit --prefer-offline
+      - name: Install dependencies
+        run: npm ci --no-audit --prefer-offline
 
-    - name: Create environment file
-      run: |
-        echo "FIREBASE_CREDENTIALS='${{ secrets.FIREBASE_CREDENTIALS }}'" > .env
-        echo "FIREBASE_DB_URL='https://realestatehomesadmin-default-rtdb.firebaseio.com'" >> .env
+      - name: Create environment file
+        run: |
+          echo "FIREBASE_CREDENTIALS='${{ secrets.FIREBASE_CREDENTIALS }}'" > .env
+          echo "FIREBASE_DB_URL='https://realestatehomesadmin-default-rtdb.firebaseio.com'" >> .env
 
-    - name: Verify credentials format
-      run: |
-        echo "Checking credentials format..."
-        CRED_LENGTH=${#FIREBASE_CREDENTIALS}
-        echo "Credentials length: $CRED_LENGTH chars"
-        echo "First 50 chars: ${FIREBASE_CREDENTIALS:0:50}"
-        echo "Last 50 chars: ${FIREBASE_CREDENTIALS: -50}"
-  env:
-    FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+      - name: Verify credentials format
+        run: |
+          echo "Checking credentials format..."
+          CRED_LENGTH=${#FIREBASE_CREDENTIALS}
+          echo "Credentials length: $CRED_LENGTH chars"
+          echo "First 50 chars: ${FIREBASE_CREDENTIALS:0:50}"
+          echo "Last 50 chars: ${FIREBASE_CREDENTIALS: -50}"
 
-    - name: Run Scraper
-      run: npm start
+      - name: Run Scraper
+        run: npm start
