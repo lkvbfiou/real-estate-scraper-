@@ -3,51 +3,66 @@ const admin = require('firebase-admin');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { URL } = require('url');
+const path = require('path');
 
+// Logger configuration
 const logger = {
   info: (...args) => console.log(`[INFO] ${new Date().toISOString()}`, ...args),
   error: (...args) => console.error(`[ERROR] ${new Date().toISOString()}`, ...args)
 };
 
-// Configuration
-const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?count=1&idx=c2fe5d4&pv=&or=';
-const DB_PATH = 'full_listings';
-const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
-
+// Configuration constants
+const CONFIG_PATH = path.join(__dirname, '..', 'config', 'firebase-cfg.json');
+const DB_URL = 'https://realestatehomesadmin-default-rtdb.firebaseio.com';
 
 async function initializeFirebase() {
   try {
-    logger.info('Initializing Firebase...');
+    logger.info('Initializing Firebase connection...');
     
-    if (!process.env.FIREBASE_CREDENTIALS || !process.env.FIREBASE_DB_URL) {
-      throw new Error('Missing Firebase environment variables');
+    // Load configuration
+    const serviceAccount = require(CONFIG_PATH);
+    
+    // Validate configuration
+    if (!serviceAccount.project_id || 
+        !serviceAccount.private_key || 
+        !serviceAccount.client_email) {
+      throw new Error('Invalid Firebase configuration - missing required fields');
     }
 
-    // Validate and parse credentials
-    const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-    
-    if (!credentials.private_key || !credentials.client_email) {
-      throw new Error('Invalid service account credentials');
-    }
+    // Fix newline formatting in private key
+    const formattedKey = serviceAccount.private_key.replace(/\\n/g, '\n');
 
-    // Initialize Firebase with certificate
+    // Initialize Firebase Admin SDK
     admin.initializeApp({
       credential: admin.credential.cert({
-        projectId: credentials.project_id,
-        clientEmail: credentials.client_email,
-        privateKey: credentials.private_key.replace(/\\n/g, '\n')
+        projectId: serviceAccount.project_id,
+        clientEmail: serviceAccount.client_email,
+        privateKey: formattedKey
       }),
-      databaseURL: process.env.FIREBASE_DB_URL
+      databaseURL: DB_URL
     });
 
-    // Verify connection
+    // Test database connection
     const db = admin.database();
-    await db.ref('.info/connected').once('value');
-    
+    const testRef = db.ref('connection-test');
+    await testRef.set({
+      timestamp: Date.now(),
+      status: 'Connection test successful'
+    });
+
     logger.info('Firebase initialized successfully');
     return db;
+
   } catch (error) {
-    logger.error('Firebase init failed:', error.stack);
+    logger.error('Firebase initialization failed:', error.message);
+    
+    // Specific error handling
+    if (error.code === 'MODULE_NOT_FOUND') {
+      logger.error('Missing firebase-cfg.json in config directory');
+    } else if (error.code === 'app/invalid-credential') {
+      logger.error('Credential validation failed - verify service account key');
+    }
+    
     process.exit(1);
   }
 }

@@ -4,3 +4,5 @@ node_modules/
 *.log
 .DS_Store
 serviceAccount.json
+
+config/firebase-cfg.json

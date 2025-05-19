@@ -1,4 +1,4 @@
-name: Real Estate Scraper
+name: Secure Scraper
 
 on:
   schedule:
@@ -8,39 +8,17 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    env:
+      FIREBASE_CFG: ${{ secrets.FIREBASE_CFG }}
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Configure time synchronization
+    - name: Create config file
       run: |
-        # Install NTP client
-        sudo apt-get update
-        sudo apt-get install -y systemd-timesyncd
-        
-        # Configure cloud-friendly time servers
-        echo -e "[Time]\nNTP=time.google.com time.cloudflare.com" | sudo tee /etc/systemd/timesyncd.conf
-        
-        # Force immediate time sync
-        sudo timedatectl set-ntp true
-        sudo systemctl restart systemd-timesyncd
-        sudo systemctl status systemd-timesyncd
-        date
+        mkdir -p config
+        echo '${{ secrets.FIREBASE_CFG }}' > config/firebase-cfg.json
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 20.x
-        cache: 'npm'
-
-    - name: Install dependencies
-      run: npm ci --no-audit --prefer-offline
-
-    - name: Create environment file
-      run: |
-        printf "FIREBASE_CREDENTIALS='%s'\n" "${{ secrets.FIREBASE_CREDENTIALS }}" > .env
-        echo "FIREBASE_DB_URL='https://realestatehomesadmin-default-rtdb.firebaseio.com'" >> .env
-
-    - name: Run Scraper
+    - name: Run scraper
       run: npm start
