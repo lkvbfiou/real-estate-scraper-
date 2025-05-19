@@ -1,0 +1,24 @@
+/real-estate-scraper
+ .github
+  /workflows
+    image-scraper.yml (for current scraper)
+    scrape.yml (for older scraper)
+  /node_modules
+   -node stuff
+  /scripts (old scrpaer content)
+    /node_modules
+    .env.local
+    /package-lock.json
+    /package.json
+    /scraper_local.json (in .gitignore)
+    /serviceAccount.jspon (in .gitignore)
+  /tests (current scraper)
+    /node_modules
+    /package-lock.json
+    /package.json
+    /scrapetest.js (working scaraper code)
+    serviceAccount.json (in .gitignore)
+  .gitignore
+  /package-lock.json
+  /package.json
+  structure.txt
