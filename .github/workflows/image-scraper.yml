@@ -2,7 +2,7 @@ name: Real Estate Scraper
 
 on:
   schedule:
-    - cron: '0 */4 * * *'  # Every 4 hours
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -15,8 +15,9 @@ jobs:
 
     - name: Sync server time
       run: |
-        sudo timedatectl set-ntp on
-        sudo service chrony restart
+        sudo apt-get update
+        sudo apt-get install -y chrony
+        sudo systemctl start chrony
         sudo chronyc -a 'burst 4/4'
         sudo chronyc -a makestep
 
