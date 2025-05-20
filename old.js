@@ -1,62 +1,32 @@
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config();
 const admin = require('firebase-admin');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { URL } = require('url');
-const path = require('path');
-const serviceAccount = require('../config/firebase-cfg.json');
 
-const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?count=1&idx=c2f'
-
-const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
-
-// Logger configuration
 const logger = {
   info: (...args) => console.log(`[INFO] ${new Date().toISOString()}`, ...args),
   error: (...args) => console.error(`[ERROR] ${new Date().toISOString()}`, ...args)
 };
 
-// Configuration constants
-const CONFIG_PATH = path.join(__dirname, '..', 'config', 'firebase-cfg.json');
-const DB_URL = 'https://realestatehomesadmin-default-rtdb.firebaseio.com';
-
+// Configuration
+const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?count=1&idx=c2fe5d4&pv=&or=';
+const DB_PATH = 'final_listings';
+const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
 
 async function initializeFirebase() {
   try {
-    console.log('Initializing Firebase with key:', serviceAccount.private_key_id);
-    
-    // Verify key format
-    if (!serviceAccount.private_key.includes('BEGIN PRIVATE KEY')) {
-      throw new Error('Invalid private key format');
-    }
-
-    // Initialize with proper formatting
+    const serviceAccount = require('./serviceAccount.json');
     admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: serviceAccount.project_id,
-        clientEmail: serviceAccount.client_email,
-        privateKey: serviceAccount.private_key.replace(/\\n/g, '\n')
-      }),
-      databaseURL: 'https://realestatehomesadmin-default-rtdb.firebaseio.com'
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: process.env.FIREBASE_DB_URL
     });
-
-    // Test connection
-    const db = admin.database();
-    await db.ref('connection-test').set({
-      timestamp: Date.now(),
-      status: 'OK'
-    });
-    
-    console.log('Firebase initialized successfully');
-    return db;
-
+    return admin.database();
   } catch (error) {
-    console.error('FATAL FIREBASE ERROR:', error);
+    logger.error('Firebase init failed:', error.stack);
     process.exit(1);
   }
 }
-
-const DB_PATH = 'listings'; // Or whatever path you want in your database
 
 async function clearDatabase(db) {
   try {
@@ -153,58 +123,56 @@ async function processImages(listings) {
 }
 
 function deduplicateListings(listings) {
-  const addressMap = new Map();
-  const uniqueListings = [];
-  
-  // Process in reverse-chronological order (newest first)
-  for (const listing of listings.reverse()) {
-    const existing = addressMap.get(listing.address);
+    const addressMap = new Map();
+    const uniqueListings = [];
     
-    if (!existing) {
-      addressMap.set(listing.address, listing);
-      uniqueListings.push(listing);
-    } else if (existing.lastUpdated > listing.lastUpdated) {
-      // Replace with older listing
-      const index = uniqueListings.findIndex(l => l.listingId === existing.listingId);
-      uniqueListings[index] = listing;
-      addressMap.set(listing.address, listing);
+    // Process in reverse-chronological order (newest first)
+    for (const listing of listings.reverse()) {
+      const existing = addressMap.get(listing.address);
+      
+      if (!existing) {
+        addressMap.set(listing.address, listing);
+        uniqueListings.push(listing);
+      } else if (existing.lastUpdated > listing.lastUpdated) {
+        // Replace with older listing
+        const index = uniqueListings.findIndex(l => l.listingId === existing.listingId);
+        uniqueListings[index] = listing;
+        addressMap.set(listing.address, listing);
+      }
     }
+  
+    logger.info(`Removed ${listings.length - uniqueListings.length} duplicates`);
+    return uniqueListings.reverse(); // Return in original reversed order
   }
-
-  logger.info(`Removed ${listings.length - uniqueListings.length} duplicates`);
-  return uniqueListings.reverse(); // Return in original reversed order
-}
-
-async function main() {
-  try {
+  
+  async function main() {
     const db = await initializeFirebase();
     await clearDatabase(db);
-    
-    // Scrape and process data
-    let listings = await scrapeListings();
-    let fullListings = await processImages(listings);
-    const finalListings = deduplicateListings(fullListings);
-
-    // Prepare updates
-    const updates = {};
-    finalListings.forEach((listing, index) => {
-      const reverseIndex = finalListings.length - 1 - index;
-      updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
-        ...listing,
-        position: reverseIndex
-      };
-    });
-
-    // Write to database
-    await db.ref().update(updates);
-    logger.info(`Successfully stored ${finalListings.length} listings`);
-    
-    process.exit(0);
-  } catch (error) {
-    logger.error('Main process failed:', error.stack);
-    process.exit(1);
+  
+    try {
+      // Scrape and process listings
+      let listings = await scrapeListings();
+      let fullListings = await processImages(listings);
+      
+      // Deduplicate and finalize order
+      const finalListings = deduplicateListings(fullListings);
+      
+      // Prepare Firebase updates with PROPER reverse ordering
+      const updates = {};
+      finalListings.forEach((listing, index) => {
+        const reverseIndex = finalListings.length - 1 - index;
+        updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
+          ...listing,
+          position: reverseIndex // Add reverse position index
+        };
+      });
+  
+      await db.ref().update(updates);
+      logger.info(`Stored ${finalListings.length} listings in reverse order`);
+      
+      process.exit(0);
+    } catch (error) {
+      logger.error('Main process failed:', error.stack);
+      process.exit(1);
+    }
   }
-}
-
-// Start the process
-main();
