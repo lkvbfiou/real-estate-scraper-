@@ -5,226 +5,202 @@
     <link rel="stylesheet" href="https://unpkg.com/swiper@8/swiper-bundle.min.css" />
     <style>
         body { 
-            font-family: 'Arial', sans-serif; 
+            font-family: Arial, sans-serif; 
             margin: 20px;
             background: #f0f0f0;
         }
         .listing {
             background: white;
             border-radius: 10px;
-            padding: 25px;
+            padding: 20px;
             margin: 20px auto;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             max-width: 1200px;
         }
-        .address {
-            font-size: 1.6em;
-            color: #2c3e50;
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-        .price-tag {
-            font-size: 1.8em;
-            color: #27ae60;
-            margin: 15px 0;
-            font-weight: bold;
-        }
         .swiper-container {
-            width: 90%;
+            width: 30%;
             margin: 0 auto;
-            border-radius: 12px;
-            overflow: hidden;
+            cursor: pointer;
         }
         .swiper {
             width: 100%;
-            height: 450px;
-        }
-        .swiper-slide {
-            position: relative;
-            background: #f8f9fa;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            height: 150px;
         }
         .swiper-slide img {
-            max-width: 100%;
-            max-height: 100%;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
+            border-radius: 5px;
+        }
+        /* Popup Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+        }
+        .modal-content {
+            position: relative;
+            background: white;
+            width: 90%;
+            height: 90%;
+            margin: 2% auto;
+            padding: 20px;
+            border-radius: 10px;
+            display: flex;
+            gap: 20px;
+        }
+        .popup-slider {
+            width: 60%;
+            height: 100%;
+        }
+        .map-details-container {
+            width: 40%;
+            padding: 15px;
+        }
+        .map-container {
+            width: 4in;
+            height: 3in;
+            margin-bottom: 20px;
+            border: 2px solid #ddd;
             border-radius: 8px;
+            overflow: hidden;
         }
         .details-panel {
-            margin-top: 20px;
-            padding: 20px;
             background: #f8f9fa;
+            padding: 15px;
             border-radius: 8px;
-            display: none;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
         }
-        .detail-item {
-            padding: 10px;
-            background: white;
-            border-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .more-info-btn {
-            background: #2980b9;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            border-radius: 6px;
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
             cursor: pointer;
-            margin-top: 15px;
-            font-size: 1em;
-            transition: background 0.3s ease;
-        }
-        .more-info-btn:hover {
-            background: #3498db;
-        }
-        .loading-placeholder {
-            height: 400px;
-            background: #ecf0f1;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 20px 0;
+            font-size: 24px;
+            color: #333;
         }
     </style>
 </head>
 <body>
-    <h1 style="text-align: center; color: #2c3e50; margin-bottom: 30px;">Property Listings</h1>
+    <h1 style="text-align: center;">Property Listings</h1>
     <div id="listings-container"></div>
 
-    <template id="loading-template">
-        <div class="loading-placeholder">
-            <img src="https://assets.materialdesignicons.com/icons/loading" alt="Loading..." style="width: 50px; height: 50px;">
+    <!-- Popup Modal Template -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <div class="popup-slider swiper"></div>
+            <div class="map-details-container">
+                <div class="map-container"></div>
+                <div class="details-panel"></div>
+            </div>
         </div>
-    </template>
+    </div>
 
     <script src="https://unpkg.com/swiper@8/swiper-bundle.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-database-compat.js"></script>
 
     <script>
-        // Firebase Configuration (Update these values from your Firebase project settings)
+        // Firebase Configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyAb-MHQwnocdR3hfbh3jjR0TdfXG_ZWxVU",
-            authDomain: "realestatehomesadmin.firebaseapp.com",
-            databaseURL: "https://realestatehomesadmin-default-rtdb.firebaseio.com",
-            projectId: "realestatehomesadmin",
-            storageBucket: "realestatehomesadmin.firebasestorage.app",
-            messagingSenderId: "243682405794",
-            appId: "1:243682405794:web:5bf48d15fda558a62996fb",
-            measurementId: "G-FDXTBEV5TN"
-        };  
+            // Your Firebase config
+        };
 
         const app = firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         const listingsContainer = document.getElementById('listings-container');
-        const swiperInstances = new Map();
+        let popupSwiper = null;
 
-        function createListingElement(listingId, listing) {
+        function createListingElement(listing) {
             const div = document.createElement('div');
             div.className = 'listing';
-            div.id = `listing-${listingId}`;
-            
             div.innerHTML = `
                 <div class="address">${listing.address}</div>
                 <div class="price-tag">${listing.price}</div>
                 <div class="swiper-container">
-                    <div class="swiper" id="swiper-${listingId}">
+                    <div class="swiper">
                         <div class="swiper-wrapper">
-                            ${listing.images.map(img => `
+                            ${listing.images.size2.map(img => `
                                 <div class="swiper-slide">
-                                    <img src="${img}" alt="Property image" loading="lazy" 
-                                         onerror="this.style.display='none'">
+                                    <img src="${img}" alt="Property image">
                                 </div>
                             `).join('')}
                         </div>
-                        <div class="swiper-pagination"></div>
-                        <div class="swiper-button-next"></div>
-                        <div class="swiper-button-prev"></div>
-                    </div>
-                </div>
-                <button class="more-info-btn" onclick="toggleDetails('${listingId}')">
-                    ${listing._showDetails ? 'Hide' : 'Show'} Details
-                </button>
-                <div class="details-panel" id="details-${listingId}">
-                    <div class="detail-item">
-                        <strong>Listing ID:</strong> ${listing.listingId}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Beds:</strong> ${listing.beds}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Baths:</strong> ${listing.baths}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Square Feet:</strong> ${listing.sqft}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Acreage:</strong> ${listing.acreage}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Year Built:</strong> ${listing.yearBuilt}
                     </div>
                 </div>
             `;
             
+            // Add click handler to slider container
+            div.querySelector('.swiper').addEventListener('click', () => showPopup(listing));
             return div;
         }
 
-        function initializeSwiper(listingId) {
-            setTimeout(() => {
-                swiperInstances.set(listingId, new Swiper(`#swiper-${listingId}`, {
-                    loop: true,
-                    pagination: {
-                        el: `.swiper-pagination`,
-                        clickable: true,
-                    },
-                    navigation: {
-                        nextEl: `.swiper-button-next`,
-                        prevEl: `.swiper-button-prev`,
-                    },
-                    keyboard: {
-                        enabled: true,
-                    },
-                }));
-            }, 100);
+        function showPopup(listing) {
+            const modal = document.getElementById('imageModal');
+            const sliderContainer = modal.querySelector('.popup-slider');
+            const mapContainer = modal.querySelector('.map-container');
+            const detailsPanel = modal.querySelector('.details-panel');
+
+            // Initialize Popup Slider
+            sliderContainer.innerHTML = `
+                <div class="swiper-wrapper">
+                    ${listing.images.size3.map(img => `
+                        <div class="swiper-slide">
+                            <img src="${img}" alt="Property image">
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            if (popupSwiper) popupSwiper.destroy();
+            popupSwiper = new Swiper(sliderContainer, {
+                effect: 'fade',
+                loop: true,
+                autoplay: {
+                    delay: 3000,
+                },
+            });
+
+            // Add Map Data
+            mapContainer.innerHTML = listing.mapData.mapSectionHTML || '<p>No map available</p>';
+            
+            // Add Details
+            detailsPanel.innerHTML = `
+                <h3>${listing.address}</h3>
+                <p>Price: ${listing.price}</p>
+                <p>Beds: ${listing.beds}</p>
+                <p>Baths: ${listing.baths}</p>
+                <p>SqFt: ${listing.sqft}</p>
+                <p>Year Built: ${listing.yearBuilt}</p>
+            `;
+
+            modal.style.display = 'block';
         }
 
-        window.toggleDetails = function(listingId) {
-            const detailsPanel = document.getElementById(`details-${listingId}`);
-            const button = document.querySelector(`#listing-${listingId} .more-info-btn`);
-            const isVisible = detailsPanel.style.display === 'block';
-            
-            detailsPanel.style.display = isVisible ? 'none' : 'grid';
-            button.textContent = isVisible ? 'Show Details' : 'Hide Details';
-            detailsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        };
+        // Close Modal
+        document.querySelector('.close-btn').addEventListener('click', () => {
+            document.getElementById('imageModal').style.display = 'none';
+            if (popupSwiper) popupSwiper.destroy();
+        });
 
-        // Real-time database listener
+        // Real-time listener
         database.ref('final_listings').on('value', (snapshot) => {
             const listings = snapshot.val() || {};
-            const listingIds = Object.keys(listings);
+            const sortedListings = Object.values(listings).sort((a, b) => a.position - b.position);
             
-            // Convert to array and sort by position
-            const sortedListings = Object.entries(listings)
-                .sort(([,a], [,b]) => a.position - b.position)
-                .map(([id, listing]) => ({ id, ...listing }));
-
-            sortedListings.forEach((listing) => {
-                let existingElement = document.getElementById(`listing-${listing.id}`);
-                
-                if (!existingElement) {
-                    const newElement = createListingElement(listing.id, listing);
-                    listingsContainer.appendChild(newElement);
-                    initializeSwiper(listing.id);
-                } else {
-                    existingElement.replaceWith(createListingElement(listing.id, listing));
-                    initializeSwiper(listing.id);
-                }
+            listingsContainer.innerHTML = '';
+            sortedListings.forEach(listing => {
+                const element = createListingElement(listing);
+                const swiper = new Swiper(element.querySelector('.swiper'), {
+                    slidesPerView: 1,
+                    spaceBetween: 10,
+                });
+                listingsContainer.appendChild(element);
             });
         });
     </script>
