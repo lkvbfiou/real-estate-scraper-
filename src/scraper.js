@@ -66,17 +66,26 @@ async function scrapeGoogleMapsData(address) {
 
     const $ = cheerio.load(response.data);
     
+    // Extract direct image URL from the static map
+    const staticMapImage = $('img[jsaction="load:XAeZkd"]').attr('src') || 
+                          $('img[aria-label="Street View"]').attr('src') || 
+                          '';
+
+    // Extract clean Street View link
+    const streetViewLink = $('a[data-url*="/streetview/"]').attr('data-url') ?
+      `https://www.google.com${$('a[data-url*="/streetview/"]').attr('data-url')}` : '';
+
     return {
-      mapSectionHTML: $('div.lu_map_section').html() || '',
-      streetViewLink: $('a[data-url*="/streetview/"]').attr('href') || '',
-      staticMapImage: $('img.YQ4gaf').attr('src') || ''
+      staticMapImage: staticMapImage,
+      streetViewLink: streetViewLink,
+      mapEmbedUrl: `https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=${searchQuery}`
     };
   } catch (error) {
     logger.error('Google Maps scrape failed:', error.stack);
     return {
-      mapSectionHTML: '',
+      staticMapImage: '',
       streetViewLink: '',
-      staticMapImage: ''
+      mapEmbedUrl: ''
     };
   }
 }
