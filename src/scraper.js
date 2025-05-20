@@ -66,14 +66,19 @@ async function scrapeGoogleMapsData(address) {
 
     const $ = cheerio.load(response.data);
     
+    // Add fallbacks for missing data
     return {
-      mapSectionHTML: $('div.lu_map_section').html(),
-      streetViewLink: $('a[data-url*="/streetview/"]').attr('href'),
-      staticMapImage: $('img.YQ4gaf').attr('src')
+      mapSectionHTML: $('div.lu_map_section').html() || '',
+      streetViewLink: $('a[data-url*="/streetview/"]').attr('href') || '',
+      staticMapImage: $('img.YQ4gaf').attr('src') || ''
     };
   } catch (error) {
     logger.error('Google Maps scrape failed:', error.stack);
-    return null;
+    return {  // Return empty structure instead of null
+      mapSectionHTML: '',
+      streetViewLink: '',
+      staticMapImage: ''
+    };
   }
 }
 
@@ -103,12 +108,28 @@ async function scrapeListings() {
         sqft: detailsText.match(/([\d,]+)\s*SqFt/)?.[1]?.replace(/,/g, '') || '0',
         yearBuilt: detailsText.match(/Built in.*?(\d{4})/)?.[1] || 'N/A',
         images: { size2: [], size3: [] },
-        mapData: {},
+        mapData: {
+          mapSectionHTML: '',
+          streetViewLink: '',
+          staticMapImage: ''
+        }, // Initialize with empty values
         lastUpdated: Date.now()
       };
 
       // Scrape Google Maps data
-      listing.mapData = await scrapeGoogleMapsData(listing.address);
+      try {
+        const scrapedData = await scrapeGoogleMapsData(listing.address);
+        listing.mapData = scrapedData || {};
+      } catch (error) {
+        logger.error('Failed to scrape map data:', error);
+      }
+
+      listing.mapData = {
+        mapSectionHTML: listing.mapData.mapSectionHTML || '',
+        streetViewLink: listing.mapData.streetViewLink || '',
+        staticMapImage: listing.mapData.staticMapImage || ''
+      };
+    
       listings.push(listing);
     });
 
