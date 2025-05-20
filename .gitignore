@@ -1,8 +1,5 @@
-# Ignore these
 node_modules/
 .env
-*.log
-.DS_Store
-serviceAccount.json
-
 config/firebase-cfg.json
+.DS_Store
+*.log

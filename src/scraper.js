@@ -1,62 +1,48 @@
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config();
 const admin = require('firebase-admin');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { URL } = require('url');
 const path = require('path');
-const serviceAccount = require('../config/firebase-cfg.json');
 
-const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?count=1&idx=c2f'
-
-const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
-
-// Logger configuration
 const logger = {
   info: (...args) => console.log(`[INFO] ${new Date().toISOString()}`, ...args),
   error: (...args) => console.error(`[ERROR] ${new Date().toISOString()}`, ...args)
 };
 
-// Configuration constants
-const CONFIG_PATH = path.join(__dirname, '..', 'config', 'firebase-cfg.json');
-const DB_URL = 'https://realestatehomesadmin-default-rtdb.firebaseio.com';
-
+// Configuration
+const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?count=1&idx=c2fe5d4&pv=&or=';
+const DB_PATH = 'final_listings';
+const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
 
 async function initializeFirebase() {
   try {
-    console.log('Initializing Firebase with key:', serviceAccount.private_key_id);
+    const serviceAccount = require(path.join(__dirname, '..', 'config', 'firebase-cfg.json'));
     
-    // Verify key format
+    // Validate private key format
     if (!serviceAccount.private_key.includes('BEGIN PRIVATE KEY')) {
       throw new Error('Invalid private key format');
     }
 
-    // Initialize with proper formatting
     admin.initializeApp({
       credential: admin.credential.cert({
-        projectId: serviceAccount.project_id,
-        clientEmail: serviceAccount.client_email,
-        privateKey: serviceAccount.private_key.replace(/\\n/g, '\n')
+        ...serviceAccount,
+        private_key: serviceAccount.private_key.replace(/\\n/g, '\n')
       }),
-      databaseURL: 'https://realestatehomesadmin-default-rtdb.firebaseio.com'
+      databaseURL: process.env.FIREBASE_DB_URL
     });
 
     // Test connection
     const db = admin.database();
-    await db.ref('connection-test').set({
-      timestamp: Date.now(),
-      status: 'OK'
-    });
+    await db.ref('connection-test').set({ timestamp: Date.now() });
+    logger.info('Firebase initialized successfully');
     
-    console.log('Firebase initialized successfully');
     return db;
-
   } catch (error) {
-    console.error('FATAL FIREBASE ERROR:', error);
+    logger.error('Firebase initialization failed:', error.stack);
     process.exit(1);
   }
 }
-
-const DB_PATH = 'listings'; // Or whatever path you want in your database
 
 async function clearDatabase(db) {
   try {
@@ -102,7 +88,7 @@ async function scrapeListings() {
       listings.push(listing);
     });
 
-    return listings.reverse(); // Reverse order as requested
+    return listings.reverse();
   } catch (error) {
     logger.error('Listing scrape failed:', error.stack);
     process.exit(1);
@@ -119,7 +105,6 @@ async function processImages(listings) {
     const imageMap = new Map();
     const listingIds = new Set(listings.map(l => l.listingId));
 
-    // Process all image URLs
     for (const rawUrl of rawLinks) {
       try {
         if (!rawUrl.includes('2&exk')) continue;
@@ -128,7 +113,6 @@ async function processImages(listings) {
         const listingId = parsed.searchParams.get('Key');
         if (!listingId || !listingIds.has(listingId)) continue;
 
-        // Validate basic image properties
         const response = await axios.head(rawUrl, { timeout: 5000 });
         if (response.status !== 200 || !response.headers['content-type']?.startsWith('image/')) continue;
 
@@ -141,7 +125,6 @@ async function processImages(listings) {
       }
     }
 
-    // Map images to listings
     return listings.map(listing => ({
       ...listing,
       images: imageMap.get(listing.listingId) || []
@@ -156,7 +139,6 @@ function deduplicateListings(listings) {
   const addressMap = new Map();
   const uniqueListings = [];
   
-  // Process in reverse-chronological order (newest first)
   for (const listing of listings.reverse()) {
     const existing = addressMap.get(listing.address);
     
@@ -164,7 +146,6 @@ function deduplicateListings(listings) {
       addressMap.set(listing.address, listing);
       uniqueListings.push(listing);
     } else if (existing.lastUpdated > listing.lastUpdated) {
-      // Replace with older listing
       const index = uniqueListings.findIndex(l => l.listingId === existing.listingId);
       uniqueListings[index] = listing;
       addressMap.set(listing.address, listing);
@@ -172,20 +153,18 @@ function deduplicateListings(listings) {
   }
 
   logger.info(`Removed ${listings.length - uniqueListings.length} duplicates`);
-  return uniqueListings.reverse(); // Return in original reversed order
+  return uniqueListings.reverse();
 }
 
 async function main() {
   try {
     const db = await initializeFirebase();
     await clearDatabase(db);
-    
-    // Scrape and process data
-    let listings = await scrapeListings();
-    let fullListings = await processImages(listings);
+
+    const listings = await scrapeListings();
+    const fullListings = await processImages(listings);
     const finalListings = deduplicateListings(fullListings);
 
-    // Prepare updates
     const updates = {};
     finalListings.forEach((listing, index) => {
       const reverseIndex = finalListings.length - 1 - index;
@@ -195,10 +174,8 @@ async function main() {
       };
     });
 
-    // Write to database
     await db.ref().update(updates);
-    logger.info(`Successfully stored ${finalListings.length} listings`);
-    
+    logger.info(`Stored ${finalListings.length} listings in reverse order`);
     process.exit(0);
   } catch (error) {
     logger.error('Main process failed:', error.stack);
@@ -206,5 +183,4 @@ async function main() {
   }
 }
 
-// Start the process
 main();

@@ -1,0 +1,31 @@
+name: Real Estate Scraper
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Run scraper
+      env:
+        FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+      run: |
+        mkdir -p config
+        echo "$SERVICE_ACCOUNT" > config/firebase-cfg.json
+        npm start
