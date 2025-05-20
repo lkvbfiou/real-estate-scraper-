@@ -66,7 +66,6 @@ async function scrapeGoogleMapsData(address) {
 
     const $ = cheerio.load(response.data);
     
-    // Add fallbacks for missing data
     return {
       mapSectionHTML: $('div.lu_map_section').html() || '',
       streetViewLink: $('a[data-url*="/streetview/"]').attr('href') || '',
@@ -74,7 +73,7 @@ async function scrapeGoogleMapsData(address) {
     };
   } catch (error) {
     logger.error('Google Maps scrape failed:', error.stack);
-    return {  // Return empty structure instead of null
+    return {
       mapSectionHTML: '',
       streetViewLink: '',
       staticMapImage: ''
@@ -94,8 +93,10 @@ async function scrapeListings() {
 
     const $ = cheerio.load(response.data);
     const listings = [];
+    const elements = $(LISTING_SELECTOR);
 
-    $(LISTING_SELECTOR).each(async (i, el) => {
+    for (let i = 0; i < elements.length; i++) {
+      const el = elements[i];
       const $el = $(el);
       const detailsText = $el.find('div.d-marginLeft--10').text();
       
@@ -112,26 +113,23 @@ async function scrapeListings() {
           mapSectionHTML: '',
           streetViewLink: '',
           staticMapImage: ''
-        }, // Initialize with empty values
+        },
         lastUpdated: Date.now()
       };
 
-      // Scrape Google Maps data
       try {
-        const scrapedData = await scrapeGoogleMapsData(listing.address);
-        listing.mapData = scrapedData || {};
+        const mapData = await scrapeGoogleMapsData(listing.address);
+        listing.mapData = {
+          mapSectionHTML: mapData.mapSectionHTML || '',
+          streetViewLink: mapData.streetViewLink || '',
+          staticMapImage: mapData.staticMapImage || ''
+        };
       } catch (error) {
-        logger.error('Failed to scrape map data:', error);
+        logger.error(`Failed to scrape map data for ${listing.address}:`, error);
       }
 
-      listing.mapData = {
-        mapSectionHTML: listing.mapData.mapSectionHTML || '',
-        streetViewLink: listing.mapData.streetViewLink || '',
-        staticMapImage: listing.mapData.staticMapImage || ''
-      };
-    
       listings.push(listing);
-    });
+    }
 
     return listings.reverse();
   } catch (error) {
@@ -220,7 +218,6 @@ async function main() {
       updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
         ...listing,
         position: reverseIndex,
-        // Ensure mapData exists before updating
         mapData: listing.mapData || {
           mapSectionHTML: '',
           streetViewLink: '',
