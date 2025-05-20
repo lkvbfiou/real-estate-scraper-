@@ -1,0 +1,216 @@
+:root {
+  /* Color Scheme Variables */
+  --color-primary-bg: #c7c7c7; /* light gray-blue */
+  --color-secondary-bg: #959695; /* muted red-gray */
+  --color-accent: #660000; /* deep red accent (example) */
+  --color-text: #3b3b3b;
+  --color-text-light: #f2f2f2;
+  --color-link: #660000;
+}
+
+/* Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  background-color: var(--color-primary-bg);
+  color: var(--color-text);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  min-width: 320px;
+}
+a {
+  color: var(--color-link);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* Header & Navigation */
+.box-1 {
+  background-color: var(--color-secondary-bg);
+  height: 5px;
+  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+.site-nav {
+  background-color: var(--color-secondary-bg);
+  position: sticky;
+  top: 5px;
+  z-index: 999;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5em 2em;
+}
+.site-nav ul {
+  list-style: none;
+  display: flex;
+  gap: 1em;
+}
+.site-nav li a {
+  background-color: var(--color-accent);
+  color: var(--color-text-light);
+  padding: 0.5em 1em;
+  border-radius: 8px;
+  transition: background-color 0.3s, transform 0.3s;
+}
+.site-nav li a:hover,
+.site-nav li a.act {
+  background-color: var(--color-text);
+  color: var(--color-text-light);
+  transform: translateY(-2px);
+}
+.logo img {
+  max-height: 60px;
+  width: auto;
+}
+
+/* Hero Section */
+header.wrapper {
+  background-color: var(--color-secondary-bg);
+  padding: 2em;
+  text-align: center;
+}
+header .slider img {
+  width: 100%;
+  max-height: 500px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* Main Content */
+main.container {
+  max-width: 1200px;
+  margin: 2em auto;
+  padding: 0 1em;
+}
+section {
+  margin-bottom: 2em;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.box1 {
+  background-color: var(--color-text);
+  color: var(--color-text-light);
+}
+.box1 h2 {
+  background-color: var(--color-accent);
+  padding: 1em;
+  margin-bottom: 0;
+}
+.box1 .inner {
+  display: flex;
+  gap: 1em;
+  padding: 1em;
+}
+.box1 .inner li {
+  list-style: none;
+  text-align: center;
+}
+.box1 .inner li img {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin-bottom: 0.5em;
+}
+.box1 .inner strong {
+  display: block;
+  font-size: 1.1em;
+  margin-bottom: 0.25em;
+}
+
+.box2 {
+  background-color: var(--color-primary-bg);
+  padding: 2em;
+  border: 1px solid var(--color-secondary-bg);
+}
+.box2 h2 {
+  margin-bottom: 0.5em;
+}
+
+.box3 {
+  background-color: var(--color-secondary-bg);
+  padding: 2em;
+  text-align: center;
+}
+.box3 h2 {
+  color: var(--color-text-light);
+  margin-bottom: 0.5em;
+}
+.box3 p a {
+  font-weight: bold;
+  color: var(--color-text-light);
+}
+
+/* Footer */
+footer#footer {
+  background-color: var(--color-text);
+  color: var(--color-text-light);
+  text-align: center;
+  padding: 1em;
+}
+footer#footer a {
+  color: var(--color-text-light);
+  text-decoration: underline;
+}
+
+/* Container for the home scroller */
+.home-scroller-container {
+  width: 100%;               /* Full page width */
+  height: 600px;             /* Adjust the height as needed */
+  overflow: hidden;          /* Hide content that overflows */
+  position: relative;        /* Positioning context for the scroller */
+  margin-top: 20px;          /* Add margin to separate from the top of the page */
+  background-color: #f4f4f4; /* Optional background color */
+}
+
+/* Scroller itself */
+.home-scroller {
+  display: flex;             /* To display images in a row */
+  animation: scroll 20s linear infinite; /* Animation to scroll horizontally */
+}
+
+/* Home item (image + description) */
+.home-scroller .home-item {
+  width: 300px;              /* Size for each item */
+  margin-right: 20px;        /* Space between items */
+  position: relative;        /* For positioning text over images */
+}
+
+/* Home item image */
+.home-scroller .home-item img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;        /* Rounded corners */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional shadow */
+}
+
+/* Description over image */
+.home-scroller .home-item .description {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 10px;
+  border-radius: 5px;
+}
+
+/* Keyframes for scrolling effect */
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}

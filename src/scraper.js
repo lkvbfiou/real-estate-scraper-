@@ -107,27 +107,39 @@ async function processImages(listings) {
 
     for (const rawUrl of rawLinks) {
       try {
-        if (!rawUrl.includes('2&exk')) continue;
+        // Check for both image types
+        const isSize2 = rawUrl.includes('2&exk');
+        const isSize3 = rawUrl.includes('3&exk');
+        if (!isSize2 && !isSize3) continue;
 
         const parsed = new URL(rawUrl);
         const listingId = parsed.searchParams.get('Key');
         if (!listingId || !listingIds.has(listingId)) continue;
 
+        // Validate image
         const response = await axios.head(rawUrl, { timeout: 5000 });
         if (response.status !== 200 || !response.headers['content-type']?.startsWith('image/')) continue;
 
+        // Initialize map entry if needed
         if (!imageMap.has(listingId)) {
-          imageMap.set(listingId, []);
+          imageMap.set(listingId, { size2: [], size3: [] });
         }
-        imageMap.get(listingId).push(rawUrl);
+
+        // Add to appropriate category
+        const category = isSize2 ? 'size2' : 'size3';
+        imageMap.get(listingId)[category].push(rawUrl);
       } catch (error) {
         logger.error(`Image processing error: ${error.message}`);
       }
     }
 
+    // Merge results with listings
     return listings.map(listing => ({
       ...listing,
-      images: imageMap.get(listing.listingId) || []
+      images: {
+        size2: imageMap.get(listing.listingId)?.size2 || [],
+        size3: imageMap.get(listing.listingId)?.size3 || []
+      }
     }));
   } catch (error) {
     logger.error('Image processing failed:', error.stack);

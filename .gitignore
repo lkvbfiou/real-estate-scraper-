@@ -3,3 +3,5 @@ node_modules/
 config/firebase-cfg.json
 .DS_Store
 *.log
+
+working.js
