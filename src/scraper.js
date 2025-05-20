@@ -219,7 +219,13 @@ async function main() {
       const reverseIndex = finalListings.length - 1 - index;
       updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
         ...listing,
-        position: reverseIndex
+        position: reverseIndex,
+        // Ensure mapData exists before updating
+        mapData: listing.mapData || {
+          mapSectionHTML: '',
+          streetViewLink: '',
+          staticMapImage: ''
+        }
       };
     });
 
