@@ -19,6 +19,7 @@ async function initializeFirebase() {
   try {
     const serviceAccount = require(path.join(__dirname, '..', 'config', 'firebase-cfg.json'));
     
+    // Validate private key format
     if (!serviceAccount.private_key.includes('BEGIN PRIVATE KEY')) {
       throw new Error('Invalid private key format');
     }
@@ -31,6 +32,7 @@ async function initializeFirebase() {
       databaseURL: process.env.FIREBASE_DB_URL
     });
 
+    // Test connection
     const db = admin.database();
     await db.ref('connection-test').set({ timestamp: Date.now() });
     logger.info('Firebase initialized successfully');
@@ -53,43 +55,6 @@ async function clearDatabase(db) {
   }
 }
 
-async function scrapeGoogleMapsData(address) {
-  try {
-    const searchQuery = encodeURIComponent(`${address} Missouri`);
-    const googleMapsUrl = `https://www.google.com/maps/search/${searchQuery}`;
-    
-    const response = await axios.get(googleMapsUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-
-    const $ = cheerio.load(response.data);
-    
-    // Extract direct image URL from the static map
-    const staticMapImage = $('img[jsaction="load:XAeZkd"]').attr('src') || 
-                          $('img[aria-label="Street View"]').attr('src') || 
-                          '';
-
-    // Extract clean Street View link
-    const streetViewLink = $('a[data-url*="/streetview/"]').attr('data-url') ?
-      `https://www.google.com${$('a[data-url*="/streetview/"]').attr('data-url')}` : '';
-
-    return {
-      staticMapImage: staticMapImage,
-      streetViewLink: streetViewLink,
-      mapEmbedUrl: `https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=${searchQuery}`
-    };
-  } catch (error) {
-    logger.error('Google Maps scrape failed:', error.stack);
-    return {
-      staticMapImage: '',
-      streetViewLink: '',
-      mapEmbedUrl: ''
-    };
-  }
-}
-
 async function scrapeListings() {
   try {
     logger.info(`Scraping listings from ${TARGET_URL}`);
@@ -102,10 +67,8 @@ async function scrapeListings() {
 
     const $ = cheerio.load(response.data);
     const listings = [];
-    const elements = $(LISTING_SELECTOR);
 
-    for (let i = 0; i < elements.length; i++) {
-      const el = elements[i];
+    $(LISTING_SELECTOR).each((i, el) => {
       const $el = $(el);
       const detailsText = $el.find('div.d-marginLeft--10').text();
       
@@ -117,28 +80,13 @@ async function scrapeListings() {
         baths: detailsText.match(/(\d+)\s*Full Baths/)?.[1] || '0',
         sqft: detailsText.match(/([\d,]+)\s*SqFt/)?.[1]?.replace(/,/g, '') || '0',
         yearBuilt: detailsText.match(/Built in.*?(\d{4})/)?.[1] || 'N/A',
-        images: { size2: [], size3: [] },
-        mapData: {
-          mapSectionHTML: '',
-          streetViewLink: '',
-          staticMapImage: ''
-        },
+        acreage: detailsText.match(/([\d.]+)\s*Acres/)?.[1] || '0',
+        images: [],
         lastUpdated: Date.now()
       };
 
-      try {
-        const mapData = await scrapeGoogleMapsData(listing.address);
-        listing.mapData = {
-          mapSectionHTML: mapData.mapSectionHTML || '',
-          streetViewLink: mapData.streetViewLink || '',
-          staticMapImage: mapData.staticMapImage || ''
-        };
-      } catch (error) {
-        logger.error(`Failed to scrape map data for ${listing.address}:`, error);
-      }
-
       listings.push(listing);
-    }
+    });
 
     return listings.reverse();
   } catch (error) {
@@ -159,6 +107,7 @@ async function processImages(listings) {
 
     for (const rawUrl of rawLinks) {
       try {
+        // Check for both image types
         const isSize2 = rawUrl.includes('2&exk');
         const isSize3 = rawUrl.includes('3&exk');
         if (!isSize2 && !isSize3) continue;
@@ -167,13 +116,16 @@ async function processImages(listings) {
         const listingId = parsed.searchParams.get('Key');
         if (!listingId || !listingIds.has(listingId)) continue;
 
+        // Validate image
         const response = await axios.head(rawUrl, { timeout: 5000 });
         if (response.status !== 200 || !response.headers['content-type']?.startsWith('image/')) continue;
 
+        // Initialize map entry if needed
         if (!imageMap.has(listingId)) {
           imageMap.set(listingId, { size2: [], size3: [] });
         }
 
+        // Add to appropriate category
         const category = isSize2 ? 'size2' : 'size3';
         imageMap.get(listingId)[category].push(rawUrl);
       } catch (error) {
@@ -181,9 +133,13 @@ async function processImages(listings) {
       }
     }
 
+    // Merge results with listings
     return listings.map(listing => ({
       ...listing,
-      images: imageMap.get(listing.listingId) || { size2: [], size3: [] }
+      images: {
+        size2: imageMap.get(listing.listingId)?.size2 || [],
+        size3: imageMap.get(listing.listingId)?.size3 || []
+      }
     }));
   } catch (error) {
     logger.error('Image processing failed:', error.stack);
@@ -226,12 +182,7 @@ async function main() {
       const reverseIndex = finalListings.length - 1 - index;
       updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
         ...listing,
-        position: reverseIndex,
-        mapData: listing.mapData || {
-          mapSectionHTML: '',
-          streetViewLink: '',
-          staticMapImage: ''
-        }
+        position: reverseIndex
       };
     });
 
