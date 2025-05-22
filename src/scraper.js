@@ -227,28 +227,89 @@ function deduplicateListings(listings) {
 }
 
 
+async function fullScrapeCycle(db) {
+  try {
+    logger.info('Starting full scrape cycle...');
+    const startTime = Date.now();
+    
+    // Phase 1: Data collection without DB interaction
+    const listings = await scrapeListings();
+    const fullListings = await processImages(listings);
+    const finalListings = deduplicateListings(fullListings);
+
+    const runtime = Math.floor((Date.now() - startTime) / 1000);
+    
+    // Critical validation point
+    if (runtime < 60) {
+      logger.error(`Fast completion detected (${runtime}s). Aborting write.`);
+      return { runtime, valid: false };
+    }
+
+    // Phase 2: Database operations only after validation
+    await clearDatabase(db);
+    
+    const updates = {};
+    finalListings.forEach((listing, index) => {
+      const reverseIndex = finalListings.length - 1 - index;
+      updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
+        ...listing,
+        position: reverseIndex
+      };
+    });
+
+    await db.ref().update(updates);
+    
+    logger.info(`Cycle completed in ${runtime} seconds`);
+    return { runtime, valid: true };
+  } catch (error) {
+    logger.error('Scrape cycle failed:', error.stack);
+    return { runtime: 0, valid: false };
+  }
+}
+
 async function main() {
   try {
     const db = await initializeFirebase();
-    const startTime = Date.now();
+    let restartCount = 0;
+    const MAX_RESTARTS = 3;
 
-    // Initial count check
-    const shouldProceed = await checkListingCount(db);
-    if (!shouldProceed) {
-      process.exit(0);
+    const runProcess = async () => {
+      const startTime = Date.now();
+      
+      // Count check
+      const currentCount = await checkListingCount(db);
+      if (currentCount === false) {
+        logger.info('No action needed');
+        return { shouldExit: true };
+      }
+
+      // Scrape cycle
+      const { runtime, valid } = await fullScrapeCycle(db);
+      
+      if (!valid) {
+        restartCount++;
+        if (restartCount > MAX_RESTARTS) {
+          logger.error('Maximum restarts reached. Exiting.');
+          return { shouldExit: true };
+        }
+        
+        logger.info(`Restarting (attempt ${restartCount})...`);
+        return { shouldExit: false };
+      }
+
+      // Successful run
+      await db.ref(COUNT_PATH).set(currentCount);
+      logger.info(`Successful update in ${runtime} seconds`);
+      return { shouldExit: true };
+    };
+
+    // Run loop
+    while (true) {
+      const { shouldExit } = await runProcess();
+      if (shouldExit) break;
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
-    // Run full scrape cycle
-    const runtime = await fullScrapeCycle(db);
-
-    // Handle fast completion
-    if (runtime < 60) {
-      logger.error(`Fast completion detected (${runtime}s). Restarting...`);
-      await clearDatabase(db);
-      process.exit(2); // Special exit code for restart
-    }
-
-    logger.info(`Successful run completed in ${runtime} seconds`);
     process.exit(0);
   } catch (error) {
     logger.error('Main process failed:', error.stack);
@@ -256,12 +317,5 @@ async function main() {
   }
 }
 
-// Add restart handler
-process.on('exit', (code) => {
-  if (code === 2) {
-    logger.info('Restarting process...');
-    setTimeout(() => main(), 5000); // 5 second delay before restart
-  }
-});
-
+// Remove previous process.on('exit') handler
 main();
