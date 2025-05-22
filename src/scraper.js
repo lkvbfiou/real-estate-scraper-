@@ -58,49 +58,13 @@ async function checkListingCount(db) {
     const snapshot = await db.ref(COUNT_PATH).once('value');
     const previousCount = snapshot.val();
 
-    if (currentCount === previousCount) {
-      logger.info('No new listings found, closing...');
-      return false;
-    }
-
-    await db.ref(COUNT_PATH).set(currentCount);
-    logger.info(`Count updated from ${previousCount || 0} to ${currentCount}`);
-    return true;
+    return { currentCount, previousCount };
   } catch (error) {
     logger.error('Count check failed:', error.stack);
-    return false;
+    return { currentCount: null, previousCount: null };
   }
 }
 
-async function fullScrapeCycle(db) {
-  try {
-    logger.info('Starting full scrape cycle...');
-    const startTime = Date.now();
-    
-    await clearDatabase(db);
-    const listings = await scrapeListings();
-    const fullListings = await processImages(listings);
-    const finalListings = deduplicateListings(fullListings);
-
-    const updates = {};
-    finalListings.forEach((listing, index) => {
-      const reverseIndex = finalListings.length - 1 - index;
-      updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
-        ...listing,
-        position: reverseIndex
-      };
-    });
-
-    await db.ref().update(updates);
-    
-    const runtime = Math.floor((Date.now() - startTime) / 1000);
-    logger.info(`Cycle completed in ${runtime} seconds`);
-    return runtime;
-  } catch (error) {
-    logger.error('Scrape cycle failed:', error.stack);
-    return 0;
-  }
-}
 
 async function clearDatabase(db) {
   try {
@@ -226,10 +190,8 @@ function deduplicateListings(listings) {
   return uniqueListings.reverse();
 }
 
-
-async function fullScrapeCycle(db) {
+async function fullScrapeCycle(db, currentCount) {
   try {
-    logger.info('Starting full scrape cycle...');
     const startTime = Date.now();
     
     // Phase 1: Data collection without DB interaction
@@ -239,10 +201,9 @@ async function fullScrapeCycle(db) {
 
     const runtime = Math.floor((Date.now() - startTime) / 1000);
     
-    // Critical validation point
     if (runtime < 60) {
       logger.error(`Fast completion detected (${runtime}s). Aborting write.`);
-      return { runtime, valid: false };
+      return { success: false };
     }
 
     // Phase 2: Database operations only after validation
@@ -259,11 +220,14 @@ async function fullScrapeCycle(db) {
 
     await db.ref().update(updates);
     
+    // Update count AFTER successful write
+    await db.ref(COUNT_PATH).set(currentCount);
+    
     logger.info(`Cycle completed in ${runtime} seconds`);
-    return { runtime, valid: true };
+    return { success: true };
   } catch (error) {
     logger.error('Scrape cycle failed:', error.stack);
-    return { runtime: 0, valid: false };
+    return { success: false };
   }
 }
 
@@ -273,49 +237,40 @@ async function main() {
     let restartCount = 0;
     const MAX_RESTARTS = 3;
 
-    const runProcess = async () => {
-      const startTime = Date.now();
+    while (restartCount <= MAX_RESTARTS) {
+      const { currentCount, previousCount } = await checkListingCount(db);
       
-      // Count check
-      const currentCount = await checkListingCount(db);
-      if (currentCount === false) {
-        logger.info('No action needed');
-        return { shouldExit: true };
+      if (currentCount === null) {
+        logger.error('Failed to get listing count');
+        break;
       }
 
-      // Scrape cycle
-      const { runtime, valid } = await fullScrapeCycle(db);
-      
-      if (!valid) {
-        restartCount++;
-        if (restartCount > MAX_RESTARTS) {
-          logger.error('Maximum restarts reached. Exiting.');
-          return { shouldExit: true };
-        }
-        
-        logger.info(`Restarting (attempt ${restartCount})...`);
-        return { shouldExit: false };
+      // First run check (previousCount === null)
+      if (currentCount === previousCount) {
+        logger.info('No new listings found, closing...');
+        process.exit(0);
       }
 
-      // Successful run
-      await db.ref(COUNT_PATH).set(currentCount);
-      logger.info(`Successful update in ${runtime} seconds`);
-      return { shouldExit: true };
-    };
+      const { success } = await fullScrapeCycle(db, currentCount);
+      
+      if (success) {
+        logger.info(`Successfully updated ${currentCount} listings`);
+        process.exit(0);
+      }
 
-    // Run loop
-    while (true) {
-      const { shouldExit } = await runProcess();
-      if (shouldExit) break;
+      restartCount++;
+      if (restartCount > MAX_RESTARTS) {
+        logger.error('Maximum restarts reached. Exiting.');
+        process.exit(1);
+      }
+      
+      logger.info(`Restarting (attempt ${restartCount}/${MAX_RESTARTS})...`);
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
-
-    process.exit(0);
   } catch (error) {
     logger.error('Main process failed:', error.stack);
     process.exit(1);
   }
 }
 
-// Remove previous process.on('exit') handler
 main();
