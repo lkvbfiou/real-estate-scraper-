@@ -13,13 +13,13 @@ const logger = {
 // Configuration
 const TARGET_URL = 'https://matrix.marismatrix.com/Matrix/Public/IDXSearch.aspx?count=1&idx=c2fe5d4&pv=&or=';
 const DB_PATH = 'final_listings';
+const COUNT_PATH = 'listing_count';
 const LISTING_SELECTOR = 'div.multiLineDisplay.ajax_display.d68m_show';
 
 async function initializeFirebase() {
   try {
     const serviceAccount = require(path.join(__dirname, '..', 'config', 'firebase-cfg.json'));
     
-    // Validate private key format
     if (!serviceAccount.private_key.includes('BEGIN PRIVATE KEY')) {
       throw new Error('Invalid private key format');
     }
@@ -32,15 +32,73 @@ async function initializeFirebase() {
       databaseURL: process.env.FIREBASE_DB_URL
     });
 
-    // Test connection
     const db = admin.database();
-    await db.ref('connection-test').set({ timestamp: Date.now() });
     logger.info('Firebase initialized successfully');
-    
     return db;
   } catch (error) {
     logger.error('Firebase initialization failed:', error.stack);
     process.exit(1);
+  }
+}
+
+async function checkListingCount(db) {
+  try {
+    logger.info('Checking current listing count...');
+    const response = await axios.get(TARGET_URL, {
+      timeout: 30000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+
+    const $ = cheerio.load(response.data);
+    const currentCount = $(LISTING_SELECTOR).length;
+    logger.info(`Current listing count: ${currentCount}`);
+
+    const snapshot = await db.ref(COUNT_PATH).once('value');
+    const previousCount = snapshot.val();
+
+    if (currentCount === previousCount) {
+      logger.info('No new listings found, closing...');
+      return false;
+    }
+
+    await db.ref(COUNT_PATH).set(currentCount);
+    logger.info(`Count updated from ${previousCount || 0} to ${currentCount}`);
+    return true;
+  } catch (error) {
+    logger.error('Count check failed:', error.stack);
+    return false;
+  }
+}
+
+async function fullScrapeCycle(db) {
+  try {
+    logger.info('Starting full scrape cycle...');
+    const startTime = Date.now();
+    
+    await clearDatabase(db);
+    const listings = await scrapeListings();
+    const fullListings = await processImages(listings);
+    const finalListings = deduplicateListings(fullListings);
+
+    const updates = {};
+    finalListings.forEach((listing, index) => {
+      const reverseIndex = finalListings.length - 1 - index;
+      updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
+        ...listing,
+        position: reverseIndex
+      };
+    });
+
+    await db.ref().update(updates);
+    
+    const runtime = Math.floor((Date.now() - startTime) / 1000);
+    logger.info(`Cycle completed in ${runtime} seconds`);
+    return runtime;
+  } catch (error) {
+    logger.error('Scrape cycle failed:', error.stack);
+    return 0;
   }
 }
 
@@ -168,31 +226,42 @@ function deduplicateListings(listings) {
   return uniqueListings.reverse();
 }
 
+
 async function main() {
   try {
     const db = await initializeFirebase();
-    await clearDatabase(db);
+    const startTime = Date.now();
 
-    const listings = await scrapeListings();
-    const fullListings = await processImages(listings);
-    const finalListings = deduplicateListings(fullListings);
+    // Initial count check
+    const shouldProceed = await checkListingCount(db);
+    if (!shouldProceed) {
+      process.exit(0);
+    }
 
-    const updates = {};
-    finalListings.forEach((listing, index) => {
-      const reverseIndex = finalListings.length - 1 - index;
-      updates[`${DB_PATH}/${reverseIndex}_${listing.listingId}`] = {
-        ...listing,
-        position: reverseIndex
-      };
-    });
+    // Run full scrape cycle
+    const runtime = await fullScrapeCycle(db);
 
-    await db.ref().update(updates);
-    logger.info(`Stored ${finalListings.length} listings in reverse order`);
+    // Handle fast completion
+    if (runtime < 60) {
+      logger.error(`Fast completion detected (${runtime}s). Restarting...`);
+      await clearDatabase(db);
+      process.exit(2); // Special exit code for restart
+    }
+
+    logger.info(`Successful run completed in ${runtime} seconds`);
     process.exit(0);
   } catch (error) {
     logger.error('Main process failed:', error.stack);
     process.exit(1);
   }
 }
+
+// Add restart handler
+process.on('exit', (code) => {
+  if (code === 2) {
+    logger.info('Restarting process...');
+    setTimeout(() => main(), 5000); // 5 second delay before restart
+  }
+});
 
 main();

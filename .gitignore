@@ -5,3 +5,7 @@ config/firebase-cfg.json
 *.log
 
 working.js
+
+google_maps_key
+
+test.html
