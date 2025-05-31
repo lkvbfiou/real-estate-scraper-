@@ -8,22 +8,33 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    continue-on-error: true  # Allows the workflow to continue even if this job fails
-
+    timeout-minutes: 15  # Prevent hanging jobs
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Set up Node.js
+    - name: Set up Node.js 20
       uses: actions/setup-node@v3
       with:
-        node-version: '18'
+        node-version: '20'
+        cache: 'npm'
 
-    - name: Install dependencies
-      run: npm install
+    - name: Install dependencies securely
+      run: |
+        # Update npm to latest version
+        npm install -g npm@latest
+        
+        # Install with security audit
+        npm install --omit=dev --ignore-scripts --audit
+        
+        # Fix critical vulnerabilities
+        npm audit fix --force || true
+        
+        # Clean cache
+        npm cache clean --force
 
-    - name: Run scraper with retries
-      id: scraper
+    - name: Run scraper with enhanced logging
       env:
         FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
         SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
@@ -31,33 +42,21 @@ jobs:
         mkdir -p config
         echo "$SERVICE_ACCOUNT" > config/firebase-cfg.json
         
-        # Function to run scraper with retries
-        function run_with_retry {
-          local max_attempts=3
-          local attempt=1
-          local success=0
-          
-          while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt of $max_attempts"
-            if npm start; then
-              success=1
-              break
-            else
-              echo "Scraper failed on attempt $attempt"
-              sleep $((attempt * 30))  # Exponential backoff
-              ((attempt++))
-            fi
-          done
-          
-          return $success
-        }
+        # Run with detailed logging
+        node --unhandled-rejections=strict index.js 2>&1 | tee scraper.log
         
-        if ! run_with_retry; then
-          echo "::error::Scraper failed after all retry attempts"
+        # Check exit status and log output
+        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+          echo "::error::Scraper failed with exit code ${PIPESTATUS[0]}"
+          cat scraper.log
           exit 1
         fi
 
-    - name: Notify on failure
-      if: failure() && steps.scraper.outcome == 'failure'
-      run: |
-        echo "Scraper failed after all retry attempts"
+    - name: Upload logs for debugging
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: scraper-logs
+        path: |
+          scraper.log
+          npm-debug.log*
