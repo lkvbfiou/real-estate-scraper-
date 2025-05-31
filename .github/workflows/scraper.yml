@@ -8,6 +8,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    continue-on-error: true  # Allows the workflow to continue even if this job fails
 
     steps:
     - name: Checkout code
@@ -21,11 +22,42 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Run scraper
+    - name: Run scraper with retries
+      id: scraper
       env:
         FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
         SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
       run: |
         mkdir -p config
         echo "$SERVICE_ACCOUNT" > config/firebase-cfg.json
-        npm start
+        
+        # Function to run scraper with retries
+        function run_with_retry {
+          local max_attempts=3
+          local attempt=1
+          local success=0
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts"
+            if npm start; then
+              success=1
+              break
+            else
+              echo "Scraper failed on attempt $attempt"
+              sleep $((attempt * 30))  # Exponential backoff
+              ((attempt++))
+            fi
+          done
+          
+          return $success
+        }
+        
+        if ! run_with_retry; then
+          echo "::error::Scraper failed after all retry attempts"
+          exit 1
+        fi
+
+    - name: Notify on failure
+      if: failure() && steps.scraper.outcome == 'failure'
+      run: |
+        echo "Scraper failed after all retry attempts"
