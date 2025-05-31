@@ -43,7 +43,7 @@ jobs:
         echo "$SERVICE_ACCOUNT" > config/firebase-cfg.json
         
         # Run with detailed logging
-        node --unhandled-rejections=strict index.js 2>&1 | tee scraper.log
+        node --unhandled-rejections=strict scraper.js 2>&1 | tee scraper.log
         
         # Check exit status and log output
         if [ ${PIPESTATUS[0]} -ne 0 ]; then
