@@ -41,7 +41,7 @@ async function initializeFirebase() {
   }
 }
 
-async function checkListingCount() {
+async function checkListingCount(db) {
   try {
     logger.info('Checking current listing count...');
     const response = await axios.get(TARGET_URL, {
@@ -55,12 +55,16 @@ async function checkListingCount() {
     const currentCount = $(LISTING_SELECTOR).length;
     logger.info(`Current listing count: ${currentCount}`);
 
-    return currentCount;
+    const snapshot = await db.ref(COUNT_PATH).once('value');
+    const previousCount = snapshot.val();
+
+    return { currentCount, previousCount };
   } catch (error) {
     logger.error('Count check failed:', error.stack);
-    return null;
+    return { currentCount: null, previousCount: null };
   }
 }
+
 
 async function clearDatabase(db) {
   try {
@@ -91,7 +95,7 @@ async function scrapeListings() {
       const detailsText = $el.find('div.d-marginLeft--10').text();
       
       const listing = {
-        listingId: $el.find('div.ivResponsible').attr('data-key') || `listing-${Date.now()}-${i}`,
+        listingId: $el.find('div.ivResponsive').attr('data-key') || `listing-${Date.now()}-${i}`,
         address: $el.find('div.d-fontSize--largest.d-color--brandDark a').text().trim(),
         price: $el.find('div.col-sm-12:has(> .d-fontSize--largest)').text().trim().match(/\$[\d,]+/)?.[0] || 'N/A',
         beds: detailsText.match(/(\d+)\s*Beds/)?.[1] || '0',
@@ -186,7 +190,7 @@ function deduplicateListings(listings) {
   return uniqueListings.reverse();
 }
 
-async function fullScrapeCycle(db) {
+async function fullScrapeCycle(db, currentCount) {
   try {
     const startTime = Date.now();
     
@@ -217,11 +221,10 @@ async function fullScrapeCycle(db) {
     await db.ref().update(updates);
     
     // Update count AFTER successful write
-    const currentCount = finalListings.length;
     await db.ref(COUNT_PATH).set(currentCount);
     
     logger.info(`Cycle completed in ${runtime} seconds`);
-    return { success: true, count: currentCount };
+    return { success: true };
   } catch (error) {
     logger.error('Scrape cycle failed:', error.stack);
     return { success: false };
@@ -235,17 +238,24 @@ async function main() {
     const MAX_RESTARTS = 3;
 
     while (restartCount <= MAX_RESTARTS) {
-      const currentCount = await checkListingCount();
+      const { currentCount, previousCount } = await checkListingCount(db);
       
       if (currentCount === null) {
         logger.error('Failed to get listing count');
         break;
       }
 
-      const { success, count } = await fullScrapeCycle(db);
+      // First run check (previousCount === null)
+      if (currentCount === previousCount) {
+        logger.info('No new listings found, closing...');
+        process.exit(0);
+      }
+
+      const { success } = await fullScrapeCycle(db, currentCount);
       
       if (success) {
-        logger.info(`Successfully updated ${count} listings`);
+        await admin.database().ref('listing_count').remove();
+        logger.info(`Successfully updated ${currentCount} listings`);
         process.exit(0);
       }
 
