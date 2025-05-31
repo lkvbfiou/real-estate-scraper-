@@ -201,7 +201,7 @@ async function fullScrapeCycle(db, currentCount) {
 
     const runtime = Math.floor((Date.now() - startTime) / 1000);
     
-    if (runtime < 60) {
+    if (runtime < 10) {
       logger.error(`Fast completion detected (${runtime}s). Aborting write.`);
       return { success: false };
     }
