@@ -235,7 +235,7 @@ async function main() {
   try {
     const db = await initializeFirebase();
     let restartCount = 0;
-    const MAX_RESTARTS = 10;
+    const MAX_RESTARTS = 3;
 
     while (restartCount <= MAX_RESTARTS) {
       const { currentCount, previousCount } = await checkListingCount(db);
