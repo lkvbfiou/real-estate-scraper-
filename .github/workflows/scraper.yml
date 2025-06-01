@@ -9,7 +9,7 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 15  # Prevent hanging jobs
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4  # Updated to v4
@@ -51,3 +51,31 @@ jobs:
         path: |
           scraper.log
           npm-debug.log*
+
+  cleanup-runs:
+    needs: scrape
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq (for JSON parsing)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Delete all workflow runs
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_FILE: scraper.yml  # replace if your filename differs
+        run: |
+          echo "Fetching up to 100 workflow run IDs..."
+          RUN_IDS=$(curl -s -H "Accept: application/vnd.github+json" \
+                          -H "Authorization: token $TOKEN" \
+                          "https://api.github.com/repos/$REPO/actions/workflows/$WORKFLOW_FILE/runs?per_page=100" \
+                    | jq -r '.workflow_runs[].id')
+
+          for id in $RUN_IDS; do
+            echo "Deleting run #$id..."
+            curl -s -X DELETE -H "Accept: application/vnd.github+json" \
+                          -H "Authorization: token $TOKEN" \
+                          "https://api.github.com/repos/$REPO/actions/runs/$id"
+          done
