@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real Estate Listings</title>
     <link rel="stylesheet" href="https://unpkg.com/swiper@8/swiper-bundle.min.css" />
-    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/homes.css">
 </head>
 <body>
     <header class="header">
@@ -16,26 +16,26 @@
         <div id="listings-container" class="listings-grid"></div>
     </main>
 
-    <!-- Popup Modal -->
+    <!-- Carousel Modal -->
     <div id="imageModal" class="modal">
-        <div class="modal-content">
+        <div class="carousel-modal">
             <span class="close-btn">&times;</span>
-            <div class="popup-slider swiper"></div>
-            <div class="map-details-container">
-                <div class="map-container"></div>
-                <div class="details-panel">
-                    <div class="detail-section">
-                        <h3 class="detail-title">Property Details</h3>
-                        <div id="detail-content"></div>
-                    </div>
+            <div class="carousel">
+                <div class="list"></div>
+                <div class="thumbnail"></div>
+                <div class="arrows">
+                    <button id="prev"><</button>
+                    <button id="next">></button>
                 </div>
+                <div class="time"></div>
             </div>
+            <div class="property-details"></div>
         </div>
     </div>
 
     <script src="https://unpkg.com/swiper@8/swiper-bundle.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-database-compat.js"></script>
-    <script src="../js/script.js"></script>
+    <script src="../js/homes.js"></script>
 </body>
 </html>

@@ -106,7 +106,7 @@ async function scrapeListings() {
         baths: detailsText.match(/(\d+)\s*Full Baths/)?.[1] || '0',
         sqft: detailsText.match(/([\d,]+)\s*SqFt/)?.[1]?.replace(/,/g, '') || '0',
         yearBuilt: detailsText.match(/Built in.*?(\d{4})/)?.[1] || 'N/A',
-        acreage: detailsText.match(/([\d.]+)\s*Acres/)?.[1] || '0',
+        acreage: (detailsText.match(/(?:\d+)(\.\d+)\s*Acres/) ? '0' + detailsText.match(/(?:\d+)(\.\d+)\s*Acres/)[1] : '0'),
         // Extract property type from specific container
         propertyType: $el.find('span.d-section').text().trim(),
         // Extract description from specific container
