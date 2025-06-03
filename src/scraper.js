@@ -95,14 +95,22 @@ async function scrapeListings() {
       const detailsText = $el.find('div.d-marginLeft--10').text();
       
       const listing = {
-        listingId: $el.find('div.ivResponsive').attr('data-key') || `listing-${Date.now()}-${i}`,
+        listingId: $el.find('div.j-portalBucketSelector').attr('data-key') || `listing-${Date.now()}-${i}`,
         address: $el.find('div.d-fontSize--largest.d-color--brandDark a').text().trim(),
-        price: $el.find('div.col-sm-12:has(> .d-fontSize--largest)').text().trim().match(/\$[\d,]+/)?.[0] || 'N/A',
+        // Extract location from specific container
+        location: $el.find('div.d-textSoft.d-fontSize--small > span.formula').text().trim(),
+        price: $el.find('div.col-sm-4 span.d-fontSize--largest').text().trim().match(/\$[\d,]+/)?.[0] || 'N/A',
+        // Extract status from specific element
+        status: $el.find('span.Status_AUC').text().trim(),
         beds: detailsText.match(/(\d+)\s*Beds/)?.[1] || '0',
         baths: detailsText.match(/(\d+)\s*Full Baths/)?.[1] || '0',
         sqft: detailsText.match(/([\d,]+)\s*SqFt/)?.[1]?.replace(/,/g, '') || '0',
         yearBuilt: detailsText.match(/Built in.*?(\d{4})/)?.[1] || 'N/A',
         acreage: detailsText.match(/([\d.]+)\s*Acres/)?.[1] || '0',
+        // Extract property type from specific container
+        propertyType: $el.find('span.d-section').text().trim(),
+        // Extract description from specific container
+        description: $el.find('div.hidden-md.hidden-sm.hidden-xs.d-paddingTop--10 span.d-textSoft').text().trim(),
         images: [],
         lastUpdated: Date.now()
       };
