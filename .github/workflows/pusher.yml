@@ -1,0 +1,29 @@
+name: Keep Repo Active
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # runs once daily at midnight UTC; change as needed
+  workflow-dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Create a no-op commit
+        run: |
+          echo "Keepalive $(date)" >> keepalive.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add keepalive.txt
+          git commit -m "Keepalive commit $(date)" || echo "No changes to commit"
+
+      - name: Push changes using PAT
+        env:
+          PAT_TOKEN: ${{ secrets.DELETE_RUN_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git
+          git push origin HEAD
