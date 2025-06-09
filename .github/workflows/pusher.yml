@@ -2,8 +2,8 @@ name: Keep Repo Active
 
 on:
   schedule:
-    - cron: '0 * * * *'  # runs once daily at midnight UTC; change as needed
-  workflow-dispatch:
+    - cron: '0 0 * * *'  # runs once daily at midnight UTC; change as needed
+  workflow_dispatch:      # allows manual triggering
 
 jobs:
   keep-alive:
