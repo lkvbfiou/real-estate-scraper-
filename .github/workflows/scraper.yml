@@ -51,32 +51,3 @@ jobs:
         path: |
           scraper.log
           npm-debug.log*
-
-  cleanup-runs:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install jq (for JSON parsing)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
-      - name: Delete all workflow runs
-        env:
-          REPO: ${{ github.repository }}
-          PAT: ${{ secrets.DELETE_RUN_PAT }}
-          WORKFLOW_FILE: scraper.yml
-        run: |
-          # Fetch the first 100 workflow-run IDs
-          RUN_IDS=$(curl -s \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: token $PAT" \
-            "https://api.github.com/repos/$REPO/actions/workflows/$WORKFLOW_FILE/runs?per_page=100" \
-            | jq -r '.workflow_runs[].id')
-
-          for id in $RUN_IDS; do
-            echo "Deleting run #$id..."
-            curl -s -X DELETE \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: token $PAT" \
-              "https://api.github.com/repos/$REPO/actions/runs/$id"
-          done

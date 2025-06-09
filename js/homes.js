@@ -14,8 +14,6 @@ const firebaseConfig = {
 const app = firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const listingsContainer = document.getElementById('listings-container');
-let popupSwiper = null;
-let carouselInterval = null;
 
 // Carousel elements
 const nextDom = document.getElementById('next');
@@ -25,27 +23,50 @@ const sliderDom = carouselDom.querySelector('.list');
 const thumbnailDom = carouselDom.querySelector('.thumbnail');
 const timeDom = carouselDom.querySelector('.time');
 
+// Helper function to format values
+function formatValue(val) {
+    if (val === '0' || val === 0 || val === 'N/A' || val === '') {
+        return '-';
+    }
+    return val;
+}
+
+// Helper function to check if details should be hidden
+function shouldHideDetails(listing) {
+    const fields = [
+        listing.beds, 
+        listing.baths, 
+        listing.sqft, 
+        listing.yearBuilt, 
+        listing.acreage
+    ];
+    
+    const invalidCount = fields.filter(val => 
+        val === '0' || val === 0 || val === 'N/A' || val === ''
+    ).length;
+    
+    return invalidCount >= 3;
+}
+
+// Create listing element
 function createListingElement(listing) {
     const div = document.createElement('div');
     div.className = 'listing';
     
-    // Create gallery HTML
-    let galleryHTML = '';
-    if (listing.images && listing.images.size2 && listing.images.size2.length > 0) {
-        galleryHTML = `
+    // Determine if we should hide details
+    const hideDetails = shouldHideDetails(listing);
+    
+    // Create image HTML (static first image)
+    let imageHTML = '';
+    if (listing.images && listing.images.size3 && listing.images.size2.length > 0) {
+        imageHTML = `
             <div class="listing-slider">
-                <div class="gallery-container">
-                    ${listing.images.size2.map((img, index) => `
-                        <div class="gallery-slide ${index === 0 ? 'active' : ''}">
-                            <img src="${img}" alt="Property image ${index + 1}">
-                        </div>
-                    `).join('')}
-                </div>
+                <img src="${listing.images.size3[0]}" alt="Property image" class="main-image">
                 <div class="hover-tooltip">Click to see the images in fullscreen</div>
             </div>
         `;
     } else {
-        galleryHTML = '<div class="listing-slider">No images available</div>';
+        imageHTML = '<div class="listing-slider">No images available</div>';
     }
     
     div.innerHTML = `
@@ -57,83 +78,51 @@ function createListingElement(listing) {
             <div class="listing-type">${listing.propertyType}</div>
         </div>
         
-        ${galleryHTML}
+        ${imageHTML}
         
         <div class="listing-details">
-            <div class="details-grid">
-                <div class="detail-item">
-                    <div class="detail-value">${listing.beds}</div>
-                    <div class="detail-label">Beds</div>
+            ${hideDetails ? 
+                '<div class="coming-soon">More information coming soon!</div>' : 
+                `
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <div class="detail-value">${formatValue(listing.beds)}</div>
+                        <div class="detail-label">Beds</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-value">${formatValue(listing.baths)}</div>
+                        <div class="detail-label">Baths</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-value">${formatValue(listing.sqft)}</div>
+                        <div class="detail-label">SqFt</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-value">${formatValue(listing.yearBuilt)}</div>
+                        <div class="detail-label">Year</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-value">${formatValue(listing.acreage)}</div>
+                        <div class="detail-label">Acres</div>
+                    </div>
                 </div>
-                <div class="detail-item">
-                    <div class="detail-value">${listing.baths}</div>
-                    <div class="detail-label">Baths</div>
-                </div>
-                <div class="detail-item">
-                    <div class="detail-value">${listing.sqft}</div>
-                    <div class="detail-label">SqFt</div>
-                </div>
-                <div class="detail-item">
-                    <div class="detail-value">${listing.yearBuilt}</div>
-                    <div class="detail-label">Year</div>
-                </div>
-                <div class="detail-item">
-                    <div class="detail-value">${listing.acreage}</div>
-                    <div class="detail-label">Acres</div>
-                </div>
-            </div>
-            
-            <div class="listing-description">${listing.description}</div>
+                
+                <div class="listing-description">${listing.description}</div>
+                `
+            }
         </div>
     `;
     
-    // Add click handler to slider container
+    // Add click handler
     const slider = div.querySelector('.listing-slider');
     if (slider) {
         slider.addEventListener('click', () => showPopup(listing));
     }
     
-    // Initialize gallery animation if there are multiple images
-    const gallerySlides = div.querySelectorAll('.gallery-slide');
-    if (gallerySlides.length > 1) {
-        startGalleryAnimation(div);
-    }
-    
     return div;
 }
 
-function startGalleryAnimation(listingElement) {
-    const slides = listingElement.querySelectorAll('.gallery-slide');
-    let currentIndex = 0;
-    
-    // Shuffle slides for random order
-    const slidesArray = Array.from(slides);
-    for (let i = slidesArray.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [slidesArray[i], slidesArray[j]] = [slidesArray[j], slidesArray[i]];
-    }
-    
-    // Apply shuffled order
-    const container = listingElement.querySelector('.gallery-container');
-    container.innerHTML = '';
-    slidesArray.forEach(slide => container.appendChild(slide));
-    
-    // Set first slide as active
-    slidesArray[0].classList.add('active');
-    
-    // Rotate images every 5 seconds
-    setInterval(() => {
-        // Remove active class from current slide
-        slidesArray[currentIndex].classList.remove('active');
-        
-        // Move to next slide
-        currentIndex = (currentIndex + 1) % slidesArray.length;
-        
-        // Add active class to new slide
-        slidesArray[currentIndex].classList.add('active');
-    }, 5000);
-}
-
+// Show popup with carousel
 function showPopup(listing) {
     const modal = document.getElementById('imageModal');
     const propertyDetails = modal.querySelector('.property-details');
@@ -162,50 +151,57 @@ function showPopup(listing) {
         sliderDom.innerHTML = '<div class="item active"><p>No images available</p></div>';
     }
     
+    // Determine if details should be hidden
+    const hideDetails = shouldHideDetails(listing);
+    
     // Add property details
     propertyDetails.innerHTML = `
         <h2>${listing.address}</h2>
         <div class="property-price">${listing.price}</div>
         <div class="property-status">${listing.status}</div>
         
-        <div class="detail-grid">
-            <div class="detail-item-large">
-                <span class="detail-label-large">Location</span>
-                <p class="detail-value-large">${listing.location}</p>
+        ${hideDetails ? 
+            '<div class="coming-soon">More information coming soon!</div>' : 
+            `
+            <div class="detail-grid">
+                <div class="detail-item-large">
+                    <span class="detail-label-large">Location</span>
+                    <p class="detail-value-large">${listing.location}</p>
+                </div>
+                <div class="detail-item-large">
+                    <span class="detail-label-large">Property Type</span>
+                    <p class="detail-value-large">${listing.propertyType}</p>
+                </div>
+                <div class="detail-item-large">
+                    <span class="detail-label-large">Beds</span>
+                    <p class="detail-value-large">${formatValue(listing.beds)}</p>
+                </div>
+                <div class="detail-item-large">
+                    <span class="detail-label-large">Baths</span>
+                    <p class="detail-value-large">${formatValue(listing.baths)}</p>
+                </div>
+                <div class="detail-item-large">
+                    <span class="detail-label-large">Square Feet</span>
+                    <p class="detail-value-large">${formatValue(listing.sqft)}</p>
+                </div>
+                <div class="detail-item-large">
+                    <span class="detail-label-large">Year Built</span>
+                    <p class="detail-value-large">${formatValue(listing.yearBuilt)}</p>
+                </div>
+                <div class="detail-item-large">
+                    <span class="detail-label-large">Acreage</span>
+                    <p class="detail-value-large">${formatValue(listing.acreage)} Acres</p>
+                </div>
             </div>
-            <div class="detail-item-large">
-                <span class="detail-label-large">Property Type</span>
-                <p class="detail-value-large">${listing.propertyType}</p>
-            </div>
-            <div class="detail-item-large">
-                <span class="detail-label-large">Beds</span>
-                <p class="detail-value-large">${listing.beds}</p>
-            </div>
-            <div class="detail-item-large">
-                <span class="detail-label-large">Baths</span>
-                <p class="detail-value-large">${listing.baths}</p>
-            </div>
-            <div class="detail-item-large">
-                <span class="detail-label-large">Square Feet</span>
-                <p class="detail-value-large">${listing.sqft}</p>
-            </div>
-            <div class="detail-item-large">
-                <span class="detail-label-large">Year Built</span>
-                <p class="detail-value-large">${listing.yearBuilt}</p>
-            </div>
-            <div class="detail-item-large">
-                <span class="detail-label-large">Acreage</span>
-                <p class="detail-value-large">${listing.acreage} Acres</p>
-            </div>
-        </div>
-        
-        <div class="description-text">${listing.description}</div>
+            `
+        }
     `;
     
     modal.style.display = 'block';
     initCarousel();
 }
 
+// Initialize carousel
 function initCarousel() {
     const slides = sliderDom.querySelectorAll('.item');
     const thumbnails = thumbnailDom.querySelectorAll('.item');
@@ -274,7 +270,6 @@ function initCarousel() {
 // Close Modal
 document.querySelector('.close-btn').addEventListener('click', () => {
     document.getElementById('imageModal').style.display = 'none';
-    clearInterval(carouselInterval);
 });
 
 // Close modal when clicking outside content
@@ -282,7 +277,6 @@ window.addEventListener('click', (e) => {
     const modal = document.getElementById('imageModal');
     if (e.target === modal) {
         modal.style.display = 'none';
-        clearInterval(carouselInterval);
     }
 });
 
