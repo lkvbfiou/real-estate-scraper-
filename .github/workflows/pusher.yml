@@ -1,4 +1,4 @@
-name: Keep Repo Active
+name: Keep Repo Active & Clean Workflows
 
 on:
   schedule:
@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repo using PAT
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.DELETE_RUN_PAT }}   # Your PAT here!
+          token: ${{ secrets.DELETE_RUN_PAT }}
 
       - name: Configure git user
         run: |
@@ -27,3 +27,28 @@ jobs:
 
       - name: Push changes
         run: git push origin HEAD
+
+      - name: Clean up old workflow runs
+        env:
+          GH_TOKEN: ${{ secrets.DELETE_RUN_PAT }}
+        run: |
+          # Get total number of workflow runs
+          total_runs=$(gh api repos/${{ github.repository }}/actions/runs --jq '.total_count')
+          echo "Total workflow runs: $total_runs"
+          
+          # If we have more than 50 runs, delete the old ones
+          if [ $total_runs -gt 50 ]; then
+            echo "Cleaning up old workflow runs, keeping only 50 most recent..."
+            
+            # Get all run IDs except the 50 most recent
+            gh api repos/${{ github.repository }}/actions/runs --paginate \
+              --jq '.workflow_runs[].id' | \
+              tail -n +51 | \
+              while read run_id; do
+                echo "Deleting run ID: $run_id"
+                gh api -X DELETE repos/${{ github.repository }}/actions/runs/$run_id
+                sleep 0.5  # Small delay to avoid rate limits
+              done
+          else
+            echo "Less than 50 workflow runs, no cleanup needed."
+          fi
