@@ -1,8 +1,7 @@
 require('dotenv').config();
-const admin = require('firebase-admin');
+const { initializeApp, credential, database } = require('firebase-admin');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { URL } = require('url');
 const path = require('path');
 
 const logger = {
@@ -20,19 +19,20 @@ async function initializeFirebase() {
   try {
     const serviceAccount = require(path.join(__dirname, '..', 'config', 'firebase-cfg.json'));
     
-    if (!serviceAccount.private_key.includes('BEGIN PRIVATE KEY')) {
-      throw new Error('Invalid private key format');
+    if (!serviceAccount.private_key || !serviceAccount.private_key.includes('BEGIN PRIVATE KEY')) {
+      throw new Error('Invalid private key format in service account');
     }
 
-    admin.initializeApp({
-      credential: admin.credential.cert({
+    // Node 22 proof initialization
+    initializeApp({
+      credential: credential.cert({
         ...serviceAccount,
         private_key: serviceAccount.private_key.replace(/\\n/g, '\n')
       }),
       databaseURL: process.env.FIREBASE_DB_URL
     });
 
-    const db = admin.database();
+    const db = database();
     logger.info('Firebase initialized successfully');
     return db;
   } catch (error) {
@@ -142,6 +142,7 @@ async function processImages(listings) {
         const isSize3 = rawUrl.includes('3&exk');
         if (!isSize2 && !isSize3) continue;
 
+        // Native URL API is used directly here
         const parsed = new URL(rawUrl);
         const listingId = parsed.searchParams.get('Key');
         if (!listingId || !listingIds.has(listingId)) continue;
@@ -262,7 +263,7 @@ async function main() {
       const { success } = await fullScrapeCycle(db, currentCount);
       
       if (success) {
-        await admin.database().ref('listing_count').remove();
+        await database().ref('listing_count').remove();
         logger.info(`Successfully updated ${currentCount} listings`);
         process.exit(0);
       }
