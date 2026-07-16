@@ -1,5 +1,6 @@
 require('dotenv').config();
-const { initializeApp, credential, database } = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getDatabase } = require('firebase-admin/database');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const path = require('path');
@@ -23,16 +24,16 @@ async function initializeFirebase() {
       throw new Error('Invalid private key format in service account');
     }
 
-    // Node 22 proof initialization
+    // Direct, modern initialization (guaranteed Node 22 compatible)
     initializeApp({
-      credential: credential.cert({
+      credential: cert({
         ...serviceAccount,
         private_key: serviceAccount.private_key.replace(/\\n/g, '\n')
       }),
       databaseURL: process.env.FIREBASE_DB_URL
     });
 
-    const db = database();
+    const db = getDatabase();
     logger.info('Firebase initialized successfully');
     return db;
   } catch (error) {
@@ -65,7 +66,6 @@ async function checkListingCount(db) {
   }
 }
 
-
 async function clearDatabase(db) {
   try {
     logger.info('Clearing existing data...');
@@ -97,19 +97,15 @@ async function scrapeListings() {
       const listing = {
         listingId: $el.find('div.j-portalBucketSelector').attr('data-key') || `listing-${Date.now()}-${i}`,
         address: $el.find('div.d-fontSize--largest.d-color--brandDark a').text().trim(),
-        // Extract location from specific container
         location: $el.find('div.d-textSoft.d-fontSize--small > span.formula').text().trim(),
         price: $el.find('div.col-sm-4 span.d-fontSize--largest').text().trim().match(/\$[\d,]+/)?.[0] || 'N/A',
-        // Extract status from specific element
         status: $el.find('span.Status_AUC').text().trim(),
         beds: detailsText.match(/(\d+)\s*Beds/)?.[1] || '0',
         baths: detailsText.match(/(\d+)\s*Full Baths/)?.[1] || '0',
         sqft: detailsText.match(/([\d,]+)\s*SqFt/)?.[1]?.replace(/,/g, '') || '0',
         yearBuilt: detailsText.match(/Built in.*?(\d{4})/)?.[1] || 'N/A',
         acreage: (detailsText.match(/(?:\d+)(\.\d+)\s*Acres/) ? '0' + detailsText.match(/(?:\d+)(\.\d+)\s*Acres/)[1] : '0'),
-        // Extract property type from specific container
         propertyType: $el.find('span.d-section').text().trim(),
-        // Extract description from specific container
         description: $el.find('div.hidden-md.hidden-sm.hidden-xs.d-paddingTop--10 span.d-textSoft').text().trim(),
         images: [],
         lastUpdated: Date.now()
@@ -137,26 +133,21 @@ async function processImages(listings) {
 
     for (const rawUrl of rawLinks) {
       try {
-        // Check for both image types
         const isSize2 = rawUrl.includes('2&exk');
         const isSize3 = rawUrl.includes('3&exk');
         if (!isSize2 && !isSize3) continue;
 
-        // Native URL API is used directly here
         const parsed = new URL(rawUrl);
         const listingId = parsed.searchParams.get('Key');
         if (!listingId || !listingIds.has(listingId)) continue;
 
-        // Validate image
         const response = await axios.head(rawUrl, { timeout: 5000 });
         if (response.status !== 200 || !response.headers['content-type']?.startsWith('image/')) continue;
 
-        // Initialize map entry if needed
         if (!imageMap.has(listingId)) {
           imageMap.set(listingId, { size2: [], size3: [] });
         }
 
-        // Add to appropriate category
         const category = isSize2 ? 'size2' : 'size3';
         imageMap.get(listingId)[category].push(rawUrl);
       } catch (error) {
@@ -164,7 +155,6 @@ async function processImages(listings) {
       }
     }
 
-    // Merge results with listings
     return listings.map(listing => ({
       ...listing,
       images: {
@@ -203,7 +193,6 @@ async function fullScrapeCycle(db, currentCount) {
   try {
     const startTime = Date.now();
     
-    // Phase 1: Data collection without DB interaction
     const listings = await scrapeListings();
     const fullListings = await processImages(listings);
     const finalListings = deduplicateListings(fullListings);
@@ -215,7 +204,6 @@ async function fullScrapeCycle(db, currentCount) {
       return { success: false };
     }
 
-    // Phase 2: Database operations only after validation
     await clearDatabase(db);
     
     const updates = {};
@@ -228,8 +216,6 @@ async function fullScrapeCycle(db, currentCount) {
     });
 
     await db.ref().update(updates);
-    
-    // Update count AFTER successful write
     await db.ref(COUNT_PATH).set(currentCount);
     
     logger.info(`Cycle completed in ${runtime} seconds`);
@@ -254,7 +240,6 @@ async function main() {
         break;
       }
 
-      // First run check (previousCount === null)
       if (currentCount === previousCount) {
         logger.info('No new listings found, closing...');
         process.exit(0);
@@ -263,7 +248,7 @@ async function main() {
       const { success } = await fullScrapeCycle(db, currentCount);
       
       if (success) {
-        await database().ref('listing_count').remove();
+        await getDatabase().ref('listing_count').remove();
         logger.info(`Successfully updated ${currentCount} listings`);
         process.exit(0);
       }
