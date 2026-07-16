@@ -40,7 +40,10 @@ jobs:
         SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
       run: |
         mkdir -p config
-        echo "$SERVICE_ACCOUNT" > config/firebase-cfg.json
+        # Use a literal heredoc to safely write the JSON secret without shell expansion issues
+        cat << 'EOF' > config/firebase-cfg.json
+        ${{ secrets.SERVICE_ACCOUNT }}
+        EOF
         npm start
 
     - name: Upload logs for debugging
