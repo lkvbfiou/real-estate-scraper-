@@ -1,0 +1,50 @@
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'   # Every Monday at 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: npm
+
+      - name: Update package versions
+        run: |
+          npm update
+          npm install
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: update npm dependencies"
+          title: "Automated dependency updates"
+          body: |
+            This PR updates project dependencies to their latest
+            compatible versions.
+
+            Generated automatically by GitHub Actions.
+          branch: automated/dependency-updates
+          delete-branch: true

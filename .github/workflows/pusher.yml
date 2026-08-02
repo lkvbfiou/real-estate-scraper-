@@ -2,15 +2,16 @@ name: Keep Repo Active & Clean Workflows
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # daily at midnight UTC
-  workflow_dispatch:      # allows manual triggering
+    - cron: '0 0 * * 1'  # Every Monday at midnight UTC
+  workflow_dispatch:
 
 jobs:
   keep-alive:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo using PAT
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.DELETE_RUN_PAT }}
 
@@ -19,36 +20,51 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Create a no-op commit
+      - name: Create keepalive commit
         run: |
-          echo "Keepalive $(date)" >> keepalive.txt
+          echo "Last keepalive: $(date -u)" > keepalive.txt
+
           git add keepalive.txt
-          git commit -m "Keepalive commit $(date)" || echo "No changes to commit"
+
+          git commit -m "chore: weekly keepalive $(date -u)" || echo "No changes to commit"
 
       - name: Push changes
-        run: git push origin HEAD
+        run: |
+          git push origin HEAD
 
       - name: Clean up old workflow runs
         env:
           GH_TOKEN: ${{ secrets.DELETE_RUN_PAT }}
         run: |
-          # Get total number of workflow runs
+          set -euo pipefail
+
+          KEEP_RUNS=100
+
           total_runs=$(gh api repos/${{ github.repository }}/actions/runs --jq '.total_count')
+
           echo "Total workflow runs: $total_runs"
-          
-          # If we have more than 50 runs, delete the old ones
-          if [ $total_runs -gt 50 ]; then
-            echo "Cleaning up old workflow runs, keeping only 50 most recent..."
-            
-            # Get all run IDs except the 50 most recent
+
+          if [ "$total_runs" -gt "$KEEP_RUNS" ]; then
+            echo "Cleaning old workflow runs..."
+
             gh api repos/${{ github.repository }}/actions/runs --paginate \
               --jq '.workflow_runs[].id' | \
-              tail -n +51 | \
+              tail -n +$((KEEP_RUNS + 1)) | \
               while read run_id; do
-                echo "Deleting run ID: $run_id"
-                gh api -X DELETE repos/${{ github.repository }}/actions/runs/$run_id
-                sleep 0.5  # Small delay to avoid rate limits
+
+                if [ "$run_id" = "${{ github.run_id }}" ]; then
+                  continue
+                fi
+
+                echo "Deleting workflow run: $run_id"
+
+                gh api \
+                  -X DELETE \
+                  repos/${{ github.repository }}/actions/runs/$run_id
+
+                sleep 0.5
+
               done
           else
-            echo "Less than 50 workflow runs, no cleanup needed."
+            echo "No cleanup needed."
           fi
